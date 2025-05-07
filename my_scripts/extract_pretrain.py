@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch_geometric.data.batch import Batch
 from jmp.modules.scaling.util import ensure_fitted
 from jmp.modules.scaling.compat import load_scales_compat
-from jmp.tasks.pretrain import PretrainConfig, PretrainModelWithFeatureExtraction
+from jmp.tasks.pretrain import PretrainConfig, PretrainModel, PretrainModelWithFeatureExtraction
 # from jmp.utils.state_dict_helper import update_gemnet_state_dict_keys
 from setup_pretrain import load_global_config, configure_model
 
@@ -38,6 +38,8 @@ def parse_args():
     parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
     parser.add_argument("--temperature_sampling", action="store_true", help="Use temperature sampling equal to 2")
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
+    parser.add_argument("--compute_sample_difficulty", action="store_true",
+                        help="If set, compute per-sample difficulty using model loss")
 
     args = parser.parse_args()
     args.root_path = global_config.get("root_path", None)
@@ -48,7 +50,12 @@ def parse_args():
 
 def get_dataset_and_model(config, args):
     """Returns the dataset and the model."""
-    model = PretrainModelWithFeatureExtraction(config)
+    if args.compute_sample_difficulty:
+        model = PretrainModel(config)
+    
+    else:
+        model = PretrainModelWithFeatureExtraction(config)
+        
     if config.model_name == "gemnet":
         checkpoint_path = Path(args.root_path) / "checkpoints/GemNet"
         if args.large:
@@ -75,12 +82,28 @@ def get_dataset_and_model(config, args):
         for key, value in full_state_dict.items()
     }
 
-    # Remove keys starting with "backbone.energy_block" and "backbone.force_block"
-    state_dict = {
-        key: value
-        for key, value in full_state_dict.items()
-        if not (key.startswith("backbone.energy_block") or key.startswith("backbone.force_block"))
-    }
+    if args.compute_sample_difficulty:
+        # Replace energy_block keys
+        state_dict = {}
+        for key, value in full_state_dict.items():
+            if key.startswith("backbone.energy_block"):
+                # Convert to: output.energy_heads.0.energy_block...
+                new_key = key.replace("backbone.energy_block", "output.energy_heads.0.energy_block")
+                state_dict[new_key] = value
+            elif key.startswith("backbone.force_block"):
+                # Convert to: output.force_heads.0.force_block...
+                new_key = key.replace("backbone.force_block", "output.force_heads.0.force_block")
+                state_dict[new_key] = value
+            else:
+                # Keep all other keys unchanged
+                state_dict[key] = value
+    else:
+        # Remove keys starting with "backbone.energy_block" and "backbone.force_block"
+        state_dict = {
+            key: value
+            for key, value in full_state_dict.items()
+            if not (key.startswith("backbone.energy_block") or key.startswith("backbone.force_block"))
+        }
     model.load_state_dict(state_dict, strict=False)
 
     # if config.model_name == "gemnet":
@@ -185,6 +208,84 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
     print(f"Saved features with metadata to {output_file}")
 
 
+def compute_sample_wise_losses(
+    model, batch, energy: torch.Tensor, forces: torch.Tensor
+) -> torch.Tensor:
+    """Returns per-graph total loss (energy + force) without reducing over the batch."""
+
+    # ---- Energy loss ----
+    energy_loss, energy_loss_mask = model._energy_loss(batch, energy)  # (b, t)
+    energy_loss_per_graph = model._safe_divide(
+        energy_loss.sum(dim=1), energy_loss_mask.sum(dim=1)
+    )  # (b,)
+
+    # ---- Force loss ----
+    force_loss, force_loss_mask = model._force_loss(batch, forces)  # (n, t), (n, t)
+    if model.config.structurewise_loss_reduction:
+        # Structure-wise loss per graph
+        force_loss = scatter(force_loss, batch.batch, dim=0, reduce="sum")  # (b, t)
+        force_loss_mask_natoms = scatter(
+            force_loss_mask.float(), batch.batch, dim=0, reduce="sum"
+        )  # (b, t)
+        force_loss = model._safe_divide(force_loss, force_loss_mask_natoms)  # (b, t)
+        force_loss_mask = force_loss_mask_natoms > 0.0  # (b, t)
+
+    force_loss_per_graph = model._safe_divide(
+        force_loss.sum(dim=1), force_loss_mask.sum(dim=1)
+    )  # (b,)
+
+    # ---- Total loss per graph ----
+    total_loss = energy_loss_per_graph + force_loss_per_graph  # (b,)
+
+    return total_loss  # (batch_size,)
+
+
+
+def compute_sample_difficulty(model, dataset, config, args):
+    """Compute per-sample difficulty using loss."""
+    def collate_fn(data_list):
+        return Batch.from_data_list(data_list)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = model.to(device)
+    model.eval()
+
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=args.batch_size, 
+        num_workers=args.num_workers,
+        collate_fn=collate_fn, 
+        shuffle=False
+    )
+
+    sample_difficulties = []
+
+    for batch in tqdm(dataloader, desc="Computing sample difficulty"):
+        batch = batch.to(device)
+
+        with torch.no_grad():
+            energy, forces = model(batch)
+            per_graph_loss = compute_sample_wise_losses(model, batch, energy=energy, forces=forces).detach().cpu()
+
+
+        for i in range(batch.num_graphs):
+            sample_difficulties.append({
+                "lmdb_idx": batch.lmdb_idx[i].item(),
+                "sid": batch.sid[i].item(),
+                "fid": batch.fid[i].item(),
+                "loss": per_graph_loss[i].item()
+            })
+
+
+    # Save results
+    task_name = args.task
+    seed = args.seed
+    model_name = args.model_name
+    output_path = f"./sample_difficulty_{model_name}/{task_name}_Seed{seed}.pt"
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    torch.save(sample_difficulties, output_path)
+    print(f"Saved sample difficulties to {output_path}")
+
 def main():
     args = parse_args()
     args.extract_features = True
@@ -197,7 +298,11 @@ def main():
 
     dataset, model = get_dataset_and_model(config, args)
     ensure_fitted(model)
-    extract_features(model, dataset, config, args)
+
+    if args.compute_sample_difficulty:
+        compute_sample_difficulty(model, dataset, config, args)
+    else:
+        extract_features(model, dataset, config, args)
 
 if __name__ == "__main__":
     main()

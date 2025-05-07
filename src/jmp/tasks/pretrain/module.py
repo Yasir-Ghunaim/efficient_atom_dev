@@ -40,7 +40,7 @@ from typing_extensions import TypeVar, override
 from ...datasets.pretrain_lmdb import PretrainDatasetConfig as PretrainDatasetConfigBase
 from ...datasets.pretrain_lmdb import PretrainLmdbDataset
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
-from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
+from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone, EquiformerV2EnergyHead, EquiformerV2ForceHead
 from ...models.gemnet.config import BackboneConfig
 from ...models.gemnet.layers.base_layers import ScaledSiLU
 from ...modules import transforms as T
@@ -330,6 +330,45 @@ class Output(Base[PretrainConfig], nn.Module):
         return E, F
 
 
+class EquiformerV2MultiOutput(nn.Module):
+    def __init__(self, config, backbone):
+        super().__init__()
+        self.config = config
+        self.tasks = config.tasks  # List of tasks
+
+        # Create multiple heads, one for each task
+        self.energy_heads = nn.ModuleList(
+            [EquiformerV2EnergyHead(backbone) for _ in self.tasks]
+        )
+        self.force_heads = nn.ModuleList(
+            [EquiformerV2ForceHead(backbone) for _ in self.tasks]
+        )
+
+    def forward(self, batch, backbone_out):
+        """
+        Args:
+            batch: Input batch containing atomic and molecular data.
+            backbone_out: Output from the EquiformerV2 backbone.
+        Returns:
+            energy_list: List of energy predictions for each task.
+            forces_list: List of force predictions for each task.
+        """
+        energy_list = []
+        forces_list = []
+
+        for energy_head, force_head, task in zip(
+            self.energy_heads, self.force_heads, self.tasks
+        ):
+            energy = energy_head(batch, backbone_out)["energy"]
+            forces = force_head(batch, backbone_out)["forces"]
+            energy_list.append(energy)
+            forces_list.append(forces)
+
+        energy_tensor = torch.stack(energy_list, dim=-1)
+        forces_tensor = torch.stack(forces_list, dim=-1)
+
+        return energy_tensor, forces_tensor
+
 TConfig = TypeVar(
     "TConfig", bound=PretrainConfig, default=PretrainConfig, infer_variance=True
 )
@@ -385,7 +424,9 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             self.backbone = self._construct_backbone()
             self.output = Output(self.config)
         elif self.config.model_name == "equiformer_v2":
-            self.backbone = EquiformerV2Backbone()
+            # self.backbone = EquiformerV2Backbone()
+            self.backbone = EquiformerV2Backbone(**dict(self.config.backbone))
+            self.output = EquiformerV2MultiOutput(self.config, self.backbone)
 
 
         # Set up the metrics
@@ -464,8 +505,8 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             out: GOCBackboneOutput = self.backbone(batch, h=h)
             pred = self.output(batch, out)  # (n h), (n p h)
         elif "equiformer_v2" in self.config.model_name:
-            #TODO 
-            raise NotImplementedError("EquiformerV2 model is not implemented yet for pretraining.")
+            out = self.backbone(batch) 
+            pred = self.output(batch, out)
         
         return pred
 

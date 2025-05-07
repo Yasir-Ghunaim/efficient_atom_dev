@@ -146,6 +146,8 @@ class EquiformerV2Backbone(nn.Module, GraphModelMixin):
 
     def __init__(
         self,
+        *,
+        num_targets = 1,
         use_pbc: bool = True,
         use_pbc_single: bool = False,
         regress_forces: bool = True,
@@ -188,6 +190,7 @@ class EquiformerV2Backbone(nn.Module, GraphModelMixin):
         use_energy_lin_ref: bool | None = False,
         load_energy_lin_ref: bool | None = False,
         activation_checkpoint: bool | None = False,
+        **kwargs,
     ):
         if mmax_list is None:
             mmax_list = [2]
@@ -200,6 +203,8 @@ class EquiformerV2Backbone(nn.Module, GraphModelMixin):
         if "e3nn" not in sys.modules:
             logging.error("You need to install e3nn==0.4.4 to use EquiformerV2.")
             raise ImportError
+
+        self.num_targets = num_targets
 
         self.activation_checkpoint = activation_checkpoint
         self.use_pbc = use_pbc

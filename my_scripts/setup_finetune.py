@@ -39,9 +39,9 @@ def load_global_config(filename="global_config.yaml"):
 
 def get_configs(dataset_name: str, target: str, args, extract_features = False):
     if args.model_name == "gemnet":
-        ckpt_path = Path(args.root_path) / "checkpoints/GemNet/jmp-s.pt"
+        ckpt_path = Path(args.root_path) / "checkpoints/JMP/jmp-s.pt"
         if args.large:
-            ckpt_path = Path(args.root_path) / "checkpoints/GemNet/jmp-l.pt"
+            ckpt_path = Path(args.root_path) / "checkpoints/JMP/jmp-l.pt"
         
         print("Loading checkpoint path:", ckpt_path)
     elif args.model_name == "equiformer_v2":
