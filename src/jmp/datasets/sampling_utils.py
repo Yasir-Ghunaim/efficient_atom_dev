@@ -1,3 +1,4 @@
+import torch
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -35,7 +36,6 @@ def get_molecule_df(dataset_path):
     # Concatenate all dataframes into a single dataframe
     df = pd.concat(df_list, ignore_index=True)
     
-    
     # Only apply extraction for datasets that include '_rxn' in 'Molecule'
     if dataset_name == "transition1x":
         df['sid'] = df['Molecule'].str.extract(r'_rxn(\d+)', expand=False)
@@ -60,6 +60,76 @@ def apply_random_sampling(available_samples, num_samples, seed):
         if num_samples > available_samples:
             num_samples = available_samples
         return random_state.choice(range(available_samples), num_samples, replace=False).tolist()
+
+def apply_difficulty_sampling(molecule_df, max_samples, sampling_type, seed):
+    """
+    Perform difficulty-based sampling based on precomputed per-sample losses.
+
+    Supports four types of sampling strategies:
+        - 'low_difficulty': samples with the lowest loss values (easiest).
+        - 'high_difficulty': samples with the highest loss values (hardest).
+        - 'mid_difficulty': random samples from the middle third of the loss distribution.
+        - 'mixed_difficulty': balanced mix of easy, mid, and hard samples (plus remainder if needed).
+
+    Args:
+        molecule_df (pd.DataFrame): DataFrame containing molecule-level info (sid, fid).
+        max_samples (int): Total number of samples to return.
+        sampling_type (str): One of ['low_difficulty', 'high_difficulty', 'mid_difficulty', 'mixed_difficulty'].
+        seed (int): Random seed for reproducibility.
+
+    Returns:
+        list: List of selected sample indices (lmdb_idx) according to difficulty strategy.
+    """
+
+    # Generate sample_difficulty_eqv2_ani1x.pt using run_analysis/run_pretrain_sample_difficulty.sh
+    file_path = "difficulty/sample_difficulty_eqv2_ani1x.pt"
+
+    difficulty_df = pd.DataFrame(torch.load(file_path))
+    difficulty_df = difficulty_df.sort_values(by="lmdb_idx").reset_index(drop=True)
+
+    # Ensure alignment with molecule_df
+    assert (difficulty_df["sid"].values == molecule_df["sid"].values).all(), "Mismatch in 'sid'"
+    assert (difficulty_df["fid"].values == molecule_df["fid"].values).all(), "Mismatch in 'fid'"
+
+    total = len(difficulty_df)
+    rng = np.random.RandomState(seed)
+
+    # Difficulty-based sampling strategies
+    if sampling_type == "low_difficulty":
+        selected_df = difficulty_df.nsmallest(max_samples, "loss")
+
+    elif sampling_type == "high_difficulty":
+        selected_df = difficulty_df.nlargest(max_samples, "loss")
+
+    elif sampling_type == "mid_difficulty":
+        start = total // 3
+        end = 2 * total // 3
+        mid_df = difficulty_df.sort_values(by="loss").iloc[start:end]
+        selected_df = mid_df.sample(n=max_samples, random_state=seed)
+
+    elif sampling_type == "mixed_difficulty":
+        # Divide total samples evenly across low, mid, and high difficulty
+        # If not divisible by 3, store the leftover in 'remainder'
+        each = max_samples // 3
+        remainder = max_samples - 3 * each
+
+        sorted_df = difficulty_df.sort_values(by="loss").reset_index(drop=True)
+        low_df = sorted_df.iloc[:each]
+        mid_df = sorted_df.iloc[total // 3 : 2 * total // 3].sample(n=each, random_state=seed)
+        high_df = sorted_df.iloc[-each:]
+        selected_df = pd.concat([low_df, mid_df, high_df])
+
+        if remainder > 0:
+            remaining_df = sorted_df.drop(selected_df.index)
+            selected_df = pd.concat([selected_df, remaining_df.sample(n=remainder, random_state=seed)])
+    else:
+        raise ValueError(f"Unknown difficulty sampling type: {sampling_type}")
+
+    # Extract lmdb_idx and shuffle
+    selected_indices = selected_df["lmdb_idx"].tolist()
+    rng.shuffle(selected_indices)
+
+    return selected_indices
 
     
 def apply_class_balanced_sampling(df, num_samples, seed, allow_repetition=True):

@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
     parser.add_argument("--task", type=str,
                         required=True, help="Name of the pretraining task. Choose from: oc20, oc22, ani1x, transition1x.")
-    parser.add_argument("--sampling_strategy", type=str, choices=["random"],
+    parser.add_argument("--sampling_strategy", type=str, choices=["random", "low_difficulty", "mid_difficulty", "high_difficulty", "mixed_difficulty"],
                         default="random", help="Sampling strategy to use: 'random', only 'random' is supported for now.")
     parser.add_argument("--temperature_sampling", action="store_true", help="Use temperature sampling equal to 2")
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
