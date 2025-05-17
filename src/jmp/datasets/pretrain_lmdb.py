@@ -158,13 +158,15 @@ class PretrainLmdbDataset(Dataset[BaseData]):
         self.molecule_df = None
         if self.config.is_train:
             # Load molecule data when extracting features
-            # if (hasattr(self.config.args, 'extract_features') and self.config.args.extract_features):
-            self.molecule_df = get_molecule_df(self.path)
+            if (hasattr(self.config.args, 'extract_features') and self.config.args.extract_features):
+                self.molecule_df = get_molecule_df(self.path)
 
         max_samples = self.config.max_samples
         seed = self.config.args.seed
         if self.config.is_train and max_samples is not None:
+            # "balanced", "balancedNoRep", "stratified" and "uniform" are only supported with self.config.args.extract_features
             if "difficulty" in self.config.args.sampling_strategy:
+                self.molecule_df = get_molecule_df(self.path)
                 self.shuffled_indices = apply_difficulty_sampling(self.molecule_df, max_samples, self.config.args.sampling_strategy, seed)
             elif self.config.args.sampling_strategy == "balanced":
                 self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, max_samples, seed, allow_repetition=True)
