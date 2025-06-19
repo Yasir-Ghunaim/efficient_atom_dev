@@ -1,3 +1,4 @@
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import scienceplots
@@ -24,14 +25,14 @@ for i, ax in enumerate(axs):
     ax.set_xticks([])
     ax.set_yticks([])  # Remove y-axis ticks
     if i == 0:
-        ax.set_ylabel('MAE (lower is better)')
+        ax.set_ylabel('MAE, lower is better')
     else:
         ax.set_ylabel('')
-    ax.set_ylim(0, max(jmp_s[i], ani_1x[i]) + 0.3*max(jmp_s[i], ani_1x[i]))  # Add limits to the y-axis
+    ax.set_ylim(0, max(jmp_s[i], ani_1x[i]) + 0.25*max(jmp_s[i], ani_1x[i]))  # Add limits to the y-axis
 
 
     for bar, value in zip(ax.patches, [jmp_s[i], ani_1x[i]]):
-        ax.text(bar.get_x() + bar.get_width()/2, value - 0.25*value, f'{value:.1f}', ha='center', fontsize=16)
+        ax.text(bar.get_x() + bar.get_width()/2, value - 0.26*value, f'{value:.1f}', ha='center', fontsize=16)
     
     # Calculate and add relative improvement if ANI-1x improves over JMP-S
     improvement = ((jmp_s[i] - ani_1x[i]) / jmp_s[i]) * 100
@@ -43,13 +44,13 @@ for i, ax in enumerate(axs):
     else:
         ax.text(bar.get_x() + bar.get_width()/2, y_pos + 0.16*y_pos,
                 f'{int(improvement)}%',
-                ha='center', fontsize=16, color='red')
+                ha='center', fontsize=16, color='#C70039')
 
 
 fig.text(0.5, -0.2, '% indicates relative MAE improvement over SoTA', 
-         ha='center', fontsize=10)
+         ha='center', fontsize=12)
 
 # fig.suptitle('Comparison of Pretraining Performance on Downstream Tasks', fontsize=14)
-fig.legend(['SoTA (JMP-S)', 'Ours (24x less Resources)'], loc='upper center', bbox_to_anchor=(0.5, 0.1), ncol=2, fontsize=14)
+fig.legend(['SoTA (JMP-S)', 'Ours: 24x less Resources'], loc='upper center', bbox_to_anchor=(0.5, 0.1), ncol=2, fontsize=14)
 plt.tight_layout(rect=[0, 0.04, 1, 1], w_pad=2.0)  # Adjust rect to make space for the legend
 plt.savefig("pull_figure.png", dpi=300)

@@ -17,7 +17,7 @@ bar_width = 0.35
 x = np.arange(len(categories))
 
 # Create the bar plot
-fig, ax = plt.subplots(figsize=(7, 3))
+fig, ax = plt.subplots(figsize=(8, 2.2))
 
 # Plot bars with a solid pastel blue and a dashed deeper blue
 ax.bar(x - bar_width/2, ani1x_2m, bar_width, label='ANI-1x (2M)', color=color_ani1x, edgecolor='black', linewidth=0.5)
@@ -27,6 +27,8 @@ ax.bar(x + bar_width/2, ani1x_2m_oc22_1m, bar_width, label='ANI-1x (2M) + OC22 (
 # Labels and title
 # ax.set_xlabel('Evaluation Task', fontsize=12)
 ax.set_ylabel('MAE', fontsize=14)
+ax.set_ylim(0, 9)
+
 # ax.set_title('Effect of Adding OC22 (1M) on Performance', fontsize=14)
 ax.set_xticks(x)
 # ax.set_xticklabels(categories, fontsize=11)
@@ -39,9 +41,16 @@ plt.yticks(fontsize=14)
 # Remove minor ticks and top ticks
 plt.minorticks_off()
 plt.tick_params(axis='x', which='both', top=False)
-plt.tick_params(axis='y', which='both', right=False)
+# plt.tick_params(axis='y', which='both', right=False)
 
-ax.legend(fontsize=12.5, loc='upper right', bbox_to_anchor=(1, 1.04))
+# ax.legend(fontsize=12.5, loc='upper right', bbox_to_anchor=(1, 1.04))
+ax.legend(
+    fontsize=12.5,
+    loc='upper center',
+    bbox_to_anchor=(0.5, 1.27),  # adjust vertical position
+    ncol=2,
+    frameon=True
+)
 
 # Save and show the figure
 plt.savefig("highCSI.png", dpi=300, bbox_inches='tight')
