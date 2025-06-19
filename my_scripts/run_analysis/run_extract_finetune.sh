@@ -26,7 +26,6 @@ for task in "${tasks[@]}"; do
     --dataset_name $task \
     --batch_size 1 \
     --number_of_samples 10000 \
-    --sampling_strategy "random" \
     --model_name "equiformer_v2" \
     --seed 0
 done
