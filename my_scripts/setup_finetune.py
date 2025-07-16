@@ -97,13 +97,22 @@ def get_configs(dataset_name: str, target: str, args, extract_features = False):
     return config, init_model
 
 def load_checkpoint(model, config, args):
-    # Here, we load our fine-tuned model on the same task (including the head)
+    # Here, we load our fine-tuned model on the same task
     if hasattr(args, "checkpoint_path") and args.checkpoint_path:
+
         print("Loading custom checkpoint =================")
         root = Path(args.root_path) / "checkpoints/MSI/"
         ckpt_path = root / (args.checkpoint_path + ".ckpt")
         state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
-        model.load_state_dict(state_dict, strict=False)
+
+        if args.model_name == "equiformer_v2":
+            # Remove keys starting with "backbone.energy_block" and "backbone.force_block"
+            backbone_state_dict = filter_state_dict(state_dict, "backbone.")
+            model.backbone.load_state_dict(backbone_state_dict)
+            print("Loaded checkpoint for equiformer_v2")
+        else:
+            model.load_state_dict(state_dict, strict=False)
+        
     
     # Here, we load Meta-AI original foundation model (without the heads)
     else:

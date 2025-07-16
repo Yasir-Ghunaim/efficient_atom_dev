@@ -34,7 +34,7 @@ print("The arguments are:", args)
 def build_job_name(args, config):
     """Construct a job name based on the configuration."""
     # Construct the job name
-    job_name = f"{args.dataset_name}_{args.target}_ep{args.epochs}_seed{args.seed}"
+    job_name = f"{args.dataset_name}_{args.model_name}_{args.target}_ep{args.epochs}_seed{args.seed}"
 
     if args.checkpoint_path:
         job_name += f"_{args.checkpoint_path}" 

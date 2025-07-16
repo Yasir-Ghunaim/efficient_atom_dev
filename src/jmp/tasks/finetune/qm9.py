@@ -231,8 +231,8 @@ class QM9Model(FinetuneModelBase[QM9Config]):
 
         data = self.generate_graphs(
             data,
-            cutoffs=Cutoffs.from_constant(8.0),
-            max_neighbors=MaxNeighbors.from_goc_base_proportions(30),
+            cutoffs=Cutoffs.from_constant(self.config.backbone.max_radius),
+            max_neighbors=MaxNeighbors.from_goc_base_proportions(self.config.backbone.max_neighbors),
             pbc=False,
         )
 

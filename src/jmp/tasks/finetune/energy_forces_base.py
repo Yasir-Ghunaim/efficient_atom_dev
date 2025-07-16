@@ -22,6 +22,8 @@ from torch_scatter import scatter
 from typing_extensions import TypeVar, override
 
 from ...models.gemnet.backbone import GOCBackboneOutput
+from ...models.equiformer_v2.equiformer_v2 import EquiformerV2EnergyHead, EquiformerV2ForceHead
+
 from ...models.gemnet.layers.force_scaler import ForceScaler
 from ...modules.dataset import dataset_transform as DT
 from .base import FinetuneConfigBase, FinetuneModelBase
@@ -117,15 +119,18 @@ class EnergyForcesModelBase(
             num_mlps: int = self.config.output.num_mlps,
         ):
             return ([emb_size] * num_mlps) + [num_targets]
-
-        self.out_energy = self.mlp(
-            dims(self.config.backbone.emb_size_atom),
-            activation=self.config.activation_cls,
-            bias=False,
-        )
+        
+        if self.config.model_name == "gemnet":
+            self.out_energy = self.mlp(
+                dims(self.config.backbone.emb_size_atom),
+                activation=self.config.activation_cls,
+                bias=False,
+            )
+        elif self.config.model_name == "equiformer_v2":
+            self.out_energy = EquiformerV2EnergyHead(self.backbone, hidden_channels_override=256)
 
     @override
-    def construct_output_heads(self):
+    def construct_output_heads(self, backbone: nn.Module):
         def dims(
             emb_size: int,
             *,
@@ -133,7 +138,7 @@ class EnergyForcesModelBase(
             num_mlps: int = self.config.output.num_mlps,
         ):
             return ([emb_size] * num_mlps) + [num_targets]
-
+                
         self.out_energy = None
         if (
             self.config.model_type in ("energy", "energy_forces")
@@ -146,10 +151,14 @@ class EnergyForcesModelBase(
             self.config.model_type in ("forces", "energy_forces")
             and not self.config.gradient_forces
         ):
-            self.out_forces = self.mlp(
-                dims(self.config.backbone.emb_size_edge),
-                activation=self.config.activation_cls,
-            )
+            if self.config.model_name == "gemnet":
+                self.out_forces = self.mlp(
+                    dims(self.config.backbone.emb_size_edge),
+                    activation=self.config.activation_cls,
+                )
+            elif self.config.model_name == "equiformer_v2":
+                self.out_forces = EquiformerV2ForceHead(self.backbone, hidden_channels_override=128)
+        
 
     @override
     def outhead_parameters(self):
@@ -194,32 +203,43 @@ class EnergyForcesModelBase(
                 data = self.generate_graphs_transform(data)
 
             atomic_numbers = data.atomic_numbers - 1
-            h = self.embedding(atomic_numbers)
-            out: GOCBackboneOutput = self.backbone(data, h=h)
+            if self.config.model_name == "gemnet":
+                h = self.embedding(atomic_numbers)
+                out: GOCBackboneOutput = self.backbone(data, h=h)
+            elif self.config.model_name == "equiformer_v2":
+                out = self.backbone(data) 
 
             n_molecules = int(torch.max(data.batch).item() + 1)
             n_atoms = data.atomic_numbers.shape[0]
 
             if self.out_energy is not None:
-                output = self.out_energy(out["energy"])  # (n_atoms, 1)
-
-                # TODO: set reduce to config
-                output = scatter(
-                    output,
-                    data.batch,
-                    dim=0,
-                    dim_size=n_molecules,
-                    reduce="sum",
-                )
-                preds["y"] = rearrange(output, "b 1 -> b")
+                if self.config.model_name == "gemnet":
+                    output = self.out_energy(out["energy"])  # (n_atoms, 1)
+                    # TODO: set reduce to config
+                    output = scatter(
+                        output,
+                        data.batch,
+                        dim=0,
+                        dim_size=n_molecules,
+                        reduce="sum",
+                    )
+                    preds["y"] = rearrange(output, "b 1 -> b")
+                elif self.config.model_name == "equiformer_v2":
+                    output = self.out_energy(data, out)["energy"]
+                    preds["y"] = output
+                
 
             if self.out_forces is not None:
-                output = self.out_forces(out["forces"])
-                output = output * out["V_st"]
-                output = scatter(
-                    output, out["idx_t"], dim=0, dim_size=n_atoms, reduce="sum"
-                )
-                preds["force"] = output
+                if self.config.model_name == "gemnet":
+                    output = self.out_forces(out["forces"])
+                    output = output * out["V_st"]
+                    output = scatter(
+                        output, out["idx_t"], dim=0, dim_size=n_atoms, reduce="sum"
+                    )
+                    preds["force"] = output
+                elif self.config.model_name == "equiformer_v2":
+                    output = self.out_forces(data, out)["forces"]
+                    preds["force"] = output
 
             if self.config.gradient_forces:
                 assert "force" not in preds, f"force already in preds: {preds.keys()}"

@@ -49,6 +49,10 @@ def jmp_l_qm9_config_(config: QM9Config, target: QM9Target, base_path: Path, arg
     # Set data config
     config.batch_size = 48
 
+    if args.model_name == "equiformer_v2":
+        config.backbone.max_radius = 12.0
+        config.backbone.max_neighbors = 500
+
     # Set up dataset
     config.train_dataset = DC.qm9_config(base_path, "train", args=args)
     config.val_dataset = DC.qm9_config(base_path, "val", args=args)

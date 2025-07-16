@@ -74,6 +74,11 @@ def jmp_l_rmd17_config_(
     #     weight_decay=0.1,
     # )
 
+    config.cutoff = 7.0
+    config.max_neighbors = 100
+    config.backbone.max_radius = config.cutoff
+    config.backbone.max_neighbors = config.max_neighbors
+
     # Set data config
     config.batch_size = 4
 
@@ -110,11 +115,18 @@ def jmp_l_rmd17_config_(
     # We also use a conservative set of hyperparameters
     #   for ReduceLROnPlateau (again, we copy Allegro here).
     # The main difference is that we use a larger patience (25 vs 3).
-    config.lr_scheduler = WarmupCosRLPConfig(
-        warmup_epochs=0,#5,
-        warmup_start_lr_factor=1.0,#1.0e-1,
-        should_restart=False,
-        max_epochs=32,
-        min_lr_factor=0.1,
-        rlp=RLPConfig(patience=25, factor=0.8),
-    )
+    if config.model_name ==  "gemnet":
+        config.lr_scheduler = WarmupCosRLPConfig(
+            warmup_epochs=0,#5,
+            warmup_start_lr_factor=1.0,#1.0e-1,
+            should_restart=False,
+            max_epochs=32,
+            min_lr_factor=0.1,
+            rlp=RLPConfig(patience=25, factor=0.8),
+        )
+    elif config.model_name == "equiformer_v2":
+        config.lr_scheduler = RLPConfig(
+            mode="min",
+            patience=25,
+            factor=0.8,
+        )

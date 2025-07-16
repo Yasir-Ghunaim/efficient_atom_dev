@@ -15,6 +15,8 @@ from ...tasks.config import AdamWConfig
 from ...tasks.pretrain import PretrainConfig
 from ...tasks.pretrain.module import LinearWarmupCosineAnnealingSchedulerConfig
 from ...models.gemnet.config import BackboneConfig
+from ...models.equiformer_v2.config import EquiformerV2Config
+
 from ...tasks.finetune.base import (
     PrimaryMetricConfig,
     CheckpointBestConfig,
@@ -40,7 +42,11 @@ def jmp_l_pt_config_(config: PretrainConfig, args: argparse.Namespace):
     config.trainer.max_epochs = args.epochs
 
     # Set backbone config
-    config.backbone = BackboneConfig.large() if args.large else BackboneConfig.small()
+    # config.backbone = BackboneConfig.large() if args.large else BackboneConfig.small()
+    if "gemnet" in config.model_name:
+        config.backbone = BackboneConfig.large()
+    elif "equiformer_v2" in config.model_name:
+        config.backbone = EquiformerV2Config.base()
 
     # Optimizer settings
     config.optimizer = AdamWConfig(
