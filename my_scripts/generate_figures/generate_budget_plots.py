@@ -51,7 +51,7 @@ for i, task in enumerate(task_names):
     for j, upstream in enumerate(upstreams):
         ax.plot(budgets, performance[task][upstream], label=upstream, marker='o', color=colors[j], linewidth=3, markersize=10)
     ax.set_title(task, fontsize=26)
-    ax.set_xlabel("Pretraining Budget (Millions)", fontsize=22)
+    ax.set_xlabel("Pretraining Budget (Millions)", fontsize=21)
     if i == 0:
         ax.set_ylabel("MAE", fontsize=26)
     else:

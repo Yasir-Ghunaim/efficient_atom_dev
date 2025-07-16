@@ -13,11 +13,11 @@ color_ani1x = '#B1DD8F'  # Soft green
 color_ani1x_oc22 = '#FCAF8A'  # Soft orange
 
 # Bar width and positions
-bar_width = 0.35
-x = np.arange(len(categories))
+bar_width = 0.12
+x = np.arange(len(categories))*0.4
 
 # Create the bar plot
-fig, ax = plt.subplots(figsize=(8, 2.2))
+fig, ax = plt.subplots(figsize=(8, 1.8))
 
 # Plot bars with a solid pastel blue and a dashed deeper blue
 ax.bar(x - bar_width/2, ani1x_2m, bar_width, label='ANI-1x (2M)', color=color_ani1x, edgecolor='black', linewidth=0.5)
@@ -26,16 +26,16 @@ ax.bar(x + bar_width/2, ani1x_2m_oc22_1m, bar_width, label='ANI-1x (2M) + OC22 (
 
 # Labels and title
 # ax.set_xlabel('Evaluation Task', fontsize=12)
-ax.set_ylabel('MAE', fontsize=14)
+ax.set_ylabel('MAE', fontsize=11)
 ax.set_ylim(0, 9)
 
 # ax.set_title('Effect of Adding OC22 (1M) on Performance', fontsize=14)
 ax.set_xticks(x)
 # ax.set_xticklabels(categories, fontsize=11)
-ax.set_xticklabels([f"{cat}\n{unit}" for cat, unit in zip(categories, units)], fontsize=14)  # Adding units below labels
+ax.set_xticklabels([f"{cat}\n{unit}" for cat, unit in zip(categories, units)], fontsize=11)  # Adding units below labels
 
 #increase y tick font size to 13
-plt.yticks(fontsize=14)
+plt.yticks(fontsize=11)
 
 
 # Remove minor ticks and top ticks
@@ -45,9 +45,9 @@ plt.tick_params(axis='x', which='both', top=False)
 
 # ax.legend(fontsize=12.5, loc='upper right', bbox_to_anchor=(1, 1.04))
 ax.legend(
-    fontsize=12.5,
+    fontsize=10,
     loc='upper center',
-    bbox_to_anchor=(0.5, 1.27),  # adjust vertical position
+    bbox_to_anchor=(0.5, 1.3),  # adjust vertical position
     ncol=2,
     frameon=True
 )

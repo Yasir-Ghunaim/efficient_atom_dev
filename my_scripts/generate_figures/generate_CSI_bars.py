@@ -57,8 +57,8 @@ def plot_fid_bar_with_ranges(
         fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*2.8), 3.5))
         bar_width = 0.2
     elif num_downstream_datasets == 2:
-        fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*4.0), 3.0))
-        bar_width = 0.15
+        fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*3.5), 3.0))
+        bar_width = 0.07
 
     colors = [
         '#b2c9ab', # Green
@@ -69,7 +69,13 @@ def plot_fid_bar_with_ranges(
     # Iterate over upstream datasets to plot each group with error bars
     for i, (upstream, color) in enumerate(zip(UPSTREAM.values(), colors)):
         upstream_stats = stats[stats['Upstream'] == upstream]
-        bar_x = [x + i * bar_width for x in x_positions]
+        if num_downstream_datasets == 2:
+            group_spacing = 0.4 
+            bar_x = [(x * group_spacing) + i * bar_width for x in x_positions]
+            ax.set_xticks([x * group_spacing + (len(UPSTREAM) - 1) * bar_width / 2 for x in x_positions])
+        else:
+            bar_x = [x + i * bar_width for x in x_positions]
+            ax.set_xticks([x + 1.5 * bar_width for x in x_positions])
         ax.bar(
             bar_x,
             upstream_stats['mean_fid'],
@@ -84,13 +90,15 @@ def plot_fid_bar_with_ranges(
         )
 
 
-    # Add labels and title
-    ax.set_xticks([x + 1.5 * bar_width for x in x_positions])
     if num_downstream_datasets == 2:
-        ax.set_xticklabels(stats['Downstream'].unique(), fontsize=14)
-        ax.tick_params(axis='y', labelsize=15)
-        ax.set_xlabel("Downstream Dataset", fontsize=16)
-        ax.set_ylabel("CSI", fontsize=16)
+        xmin, xmax = ax.get_xlim()
+        margin = 0.07  # Adjust as needed
+        ax.set_xlim(xmin - margin, xmax + margin)
+
+        ax.set_xticklabels(stats['Downstream'].unique(), fontsize=12)
+        ax.tick_params(axis='y', labelsize=12)
+        ax.set_xlabel("Downstream Dataset", fontsize=13)
+        ax.set_ylabel("CSI", fontsize=13)
     else:
         ax.set_xticklabels(stats['Downstream'].unique(), fontsize=16)
         ax.tick_params(axis='y', labelsize=17)
@@ -100,9 +108,9 @@ def plot_fid_bar_with_ranges(
     if num_downstream_datasets == 2:
         ax.legend(
             # title="Upstream",
-            fontsize=14,
+            fontsize=10.5,
             loc="upper center",
-            bbox_to_anchor=(0.5, 1.3),  # Center above the plot
+            bbox_to_anchor=(0.5, 1.22),  # Center above the plot
             ncol=4,  # Arrange legend entries in a single row
             frameon=True  # Optional: remove legend frame
         )
