@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Annotated, Any, Generic, Literal, TypeAlias, assert_never, cast
+from typing import Union, Annotated, Any, Generic, Literal, TypeAlias, assert_never, cast, Dict, Optional
 from argparse import Namespace
 
 import torch
@@ -34,11 +34,14 @@ from torch_geometric.data.batch import Batch
 from torch_geometric.data.data import BaseData
 from torch_scatter import scatter
 from typing_extensions import TypedDict, TypeVar, override
+from pydantic import root_validator, ValidationError
 
+from ...models.equiformer_v2.equiformer_v2 import EquiformerV2EnergyHead
 from ...datasets.finetune.base import LmdbDataset
 from ...datasets.finetune_pdbbind import PDBBindConfig, PDBBindDataset
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
+from ...models.equiformer_v2.config import EquiformerV2Config
 from ...models.gemnet.config import BackboneConfig
 from ...models.gemnet.layers.base_layers import ScaledSiLU
 from ...modules import transforms as T
@@ -361,7 +364,7 @@ class FinetuneConfigBase(BaseConfig):
         embedding_size=BackboneConfig.base().emb_size_atom,
     )
     """Configuration for the embedding layer."""
-    backbone: BackboneConfig
+    backbone: Optional[Union[BackboneConfig, EquiformerV2Config]]
     """Configuration for the backbone."""
     output: OutputConfig = OutputConfig(num_mlps=5)
     """Configuration for the output head."""
@@ -486,6 +489,25 @@ class FinetuneConfigBase(BaseConfig):
     ema: EMAConfig | None = None
     """Configuration for exponential moving average"""
 
+
+    model_name: str = "gemnet"
+    """Name of the model"""
+
+    parameters_to_not_freeze: list[str] = []
+
+    # Assign backbone typing 
+    @root_validator(pre=True)
+    def validate_backbone(cls, values):
+        backbone = values.get('backbone')
+        if isinstance(backbone, dict):
+            if 'attn_alpha_channels' in backbone:  # Attribute specific to EquiformerV2Config
+                values['backbone'] = EquiformerV2Config(**backbone)
+            elif 'num_spherical' in backbone:  # Attribute specific to BackboneConfig
+                values['backbone'] = BackboneConfig(**backbone)
+            else:
+                raise ValidationError("Invalid backbone configuration provided.")
+        return values
+
     @override
     def __post_init__(self):
         super().__post_init__()
@@ -507,19 +529,23 @@ class GraphScalarOutputHead(Base[TConfig], nn.Module, Generic[TConfig]):
     def __init__(
         self,
         config: TConfig,
+        backbone: nn.Module,
         reduction: str | None = None,
     ):
         super().__init__(config)
 
-        if reduction is None:
-            reduction = self.config.graph_scalar_reduction_default
+        if self.config.model_name == "gemnet":
+            if reduction is None:
+                reduction = self.config.graph_scalar_reduction_default
 
-        self.out_mlp = self.mlp(
-            ([self.config.backbone.emb_size_atom] * self.config.output.num_mlps)
-            + [self.config.backbone.num_targets],
-            activation=self.config.activation_cls,
-        )
-        self.reduction = reduction
+            self.out_mlp = self.mlp(
+                ([self.config.backbone.emb_size_atom] * self.config.output.num_mlps)
+                + [self.config.backbone.num_targets],
+                activation=self.config.activation_cls,
+            )
+            self.reduction = reduction
+        elif self.config.model_name == "equiformer_v2":
+            self.out_scalar = EquiformerV2EnergyHead(backbone, hidden_channels_override=256)
 
     @override
     def forward(
@@ -532,22 +558,26 @@ class GraphScalarOutputHead(Base[TConfig], nn.Module, Generic[TConfig]):
         data = input["data"]
         backbone_output = input["backbone_output"]
 
-        n_molecules = int(torch.max(data.batch).item() + 1)
 
-        output = self.out_mlp(backbone_output["energy"])  # (n_atoms, 1)
-        if scale is not None:
-            output = output * scale
-        if shift is not None:
-            output = output + shift
+        if self.config.model_name == "gemnet":
+            n_molecules = int(torch.max(data.batch).item() + 1)
 
-        output = scatter(
-            output,
-            data.batch,
-            dim=0,
-            dim_size=n_molecules,
-            reduce=self.reduction,
-        )  # (bsz, 1)
-        output = rearrange(output, "b 1 -> b")
+            output = self.out_mlp(backbone_output["energy"])  # (n_atoms, 1)
+            if scale is not None:
+                output = output * scale
+            if shift is not None:
+                output = output + shift
+
+            output = scatter(
+                output,
+                data.batch,
+                dim=0,
+                dim_size=n_molecules,
+                reduce=self.reduction,
+            )  # (bsz, 1)
+            output = rearrange(output, "b 1 -> b")
+        elif self.config.model_name == "equiformer_v2":
+            output = self.out_scalar(data, backbone_output)["energy"]
         return output
 
 
@@ -743,10 +773,11 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
                 pass
 
     def validate_config(self, config: TConfig):
-        assert config.activation.lower() == config.backbone.activation.lower()
+        if config.model_name == "gemnet":
+            assert config.activation.lower() == config.backbone.activation.lower()
 
-        assert config.embedding.num_elements == config.backbone.num_elements
-        assert config.embedding.embedding_size == config.backbone.emb_size_atom
+            assert config.embedding.num_elements == config.backbone.num_elements
+            assert config.embedding.embedding_size == config.backbone.emb_size_atom
 
         assert config.all_targets, f"No targets specified, {config.all_targets=}"
         for a, b in itertools.combinations(
@@ -782,8 +813,10 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
 
     def _construct_backbone(self):
         log.critical("Using regular backbone")
-
-        backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
+        if self.config.model_name == "gemnet":
+            backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone), args=self.config.args)
+        elif self.config.model_name == "equiformer_v2":
+            backbone = EquiformerV2Backbone(**dict(self.config.backbone), args = self.config.args)
 
         return backbone
 
@@ -825,12 +858,16 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
                 embedding_dim=self.config.embedding.embedding_size,
             )
 
-            self.backbone = self._construct_backbone()
-            self.register_shared_parameters(self.backbone.shared_parameters)
+        self.backbone = self._construct_backbone()
+        self.construct_output_heads(self.backbone)
+        
+        # self.register_shared_parameters(self.backbone.shared_parameters)
 
-            self.construct_output_heads()
-        elif self.config.model_name == "equiformer_v2":
-            self.backbone = EquiformerV2Backbone()
+        # elif self.config.model_name == "equiformer_v2":
+            # self.backbone = EquiformerV2Backbone()
+
+        if self.config.model_name == "gemnet":
+            self.register_shared_parameters(self.backbone.shared_parameters)
 
         self.train_metrics = FinetuneMetrics(
             self.config.metrics,
@@ -982,9 +1019,10 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
             f"{num_total:,} total parameters ({num_train:,} trainable)"
         )
 
-    def construct_graph_scalar_output_head(self, target: str) -> nn.Module:
+    def construct_graph_scalar_output_head(self, target: str, backbone: nn.Module) -> nn.Module:
         return GraphScalarOutputHead(
             self.config,
+            backbone,
             reduction=self.config.graph_scalar_reduction.get(
                 target, self.config.graph_scalar_reduction_default
             ),
@@ -1022,10 +1060,10 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
             ),
         )
 
-    def construct_output_heads(self):
+    def construct_output_heads(self, backbone: nn.Module):
         self.graph_outputs = TypedModuleDict(
             {
-                target: self.construct_graph_scalar_output_head(target)
+                target: self.construct_graph_scalar_output_head(target, backbone)
                 for target in self.config.graph_scalar_targets
             },
             key_prefix="ft_mlp_",
@@ -1083,29 +1121,28 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
             atomic_numbers = data.atomic_numbers - 1
             h = self.embedding(atomic_numbers)  # (N, d_model)
             out = cast(GOCBackboneOutput, self.backbone(data, h=h))
+        elif self.config.model_name == "equiformer_v2":
+            out = self.backbone(data) 
 
-            output_head_input: OutputHeadInput = {
-                "backbone_output": out,
-                "data": data,
-            }
+        output_head_input: OutputHeadInput = {
+            "backbone_output": out,
+            "data": data,
+        }
 
-            preds = {
-                **{
-                    target: module(output_head_input)
-                    for target, module in self.graph_outputs.items()
-                },
-                **{
-                    target: module(output_head_input)
-                    for target, module in self.graph_classification_outputs.items()
-                },
-                **{
-                    target: module(output_head_input)
-                    for target, module in self.node_outputs.items()
-                },
-            }
-        elif "equiformer_v2" in self.config.model_name:
-            #TODO 
-            raise NotImplementedError("EquiformerV2 model is not implemented yet for finetuning.")
+        preds = {
+            **{
+                target: module(output_head_input)
+                for target, module in self.graph_outputs.items()
+            },
+            **{
+                target: module(output_head_input)
+                for target, module in self.graph_classification_outputs.items()
+            },
+            **{
+                target: module(output_head_input)
+                for target, module in self.node_outputs.items()
+            },
+        }
 
         return preds
 
@@ -1548,21 +1585,26 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
             max_neighbors_orig=max_neighbors.aint,
         )
         main_graph = subselect(cutoffs.main, max_neighbors.main)
-        aeaint_graph = subselect(cutoffs.aeaint, max_neighbors.aeaint)
-        qint_graph = subselect(cutoffs.qint, max_neighbors.qint)
+        if self.config.model_name == "gemnet":
+            aeaint_graph = subselect(cutoffs.aeaint, max_neighbors.aeaint)
+            qint_graph = subselect(cutoffs.qint, max_neighbors.qint)
 
-        # We can't do this at the data level: This is because the batch collate_fn doesn't know
-        # that it needs to increment the "id_swap" indices as it collates the data.
-        # So we do this at the graph level (which is done in the GemNetOC `get_graphs_and_indices` method).
-        # main_graph = symmetrize_edges(main_graph, num_atoms=data.pos.shape[0])
-        qint_graph = tag_mask(data, qint_graph, tags=self.config.backbone.qint_tags)
+            # We can't do this at the data level: This is because the batch collate_fn doesn't know
+            # that it needs to increment the "id_swap" indices as it collates the data.
+            # So we do this at the graph level (which is done in the GemNetOC `get_graphs_and_indices` method).
+            # main_graph = symmetrize_edges(main_graph, num_atoms=data.pos.shape[0])
+            qint_graph = tag_mask(data, qint_graph, tags=self.config.backbone.qint_tags)
 
-        graphs = {
-            "main": main_graph,
-            "a2a": aint_graph,
-            "a2ee2a": aeaint_graph,
-            "qint": qint_graph,
-        }
+            graphs = {
+                "main": main_graph,
+                "a2a": aint_graph,
+                "a2ee2a": aeaint_graph,
+                "qint": qint_graph,
+            }
+        elif self.config.model_name == "equiformer_v2":
+            graphs = {
+                "main": main_graph
+            }
 
         for graph_type, graph in graphs.items():
             for key, value in graph.items():

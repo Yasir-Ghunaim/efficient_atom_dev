@@ -204,7 +204,7 @@ class QM9Model(FinetuneModelBase[QM9Config]):
         return "qm9"
 
     @override
-    def construct_graph_scalar_output_head(self, target: str):
+    def construct_graph_scalar_output_head(self, target: str, backbone):
         reduction = self.config.graph_scalar_reduction.get(
             target, self.config.graph_scalar_reduction_default
         )
@@ -217,7 +217,7 @@ class QM9Model(FinetuneModelBase[QM9Config]):
 
                 return SpatialExtentOutputHead(self.config, lambda: self.atomic_masses, reduction)
             case DefaultOutputHeadConfig():
-                return super().construct_graph_scalar_output_head(target)
+                return super().construct_graph_scalar_output_head(target, backbone)
             case _:
                 assert_never(self.config.output_head)
 

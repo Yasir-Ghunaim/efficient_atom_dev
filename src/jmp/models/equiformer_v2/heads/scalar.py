@@ -25,14 +25,17 @@ if TYPE_CHECKING:
 
 @registry.register_model("equiformerV2_scalar_head")
 class EqV2ScalarHead(nn.Module, HeadInterface):
-    def __init__(self, backbone, output_name: str = "energy", reduce: str = "sum"):
+    def __init__(self, backbone, hidden_channels_override: int = None, output_name: str = "energy", reduce: str = "sum"):
         super().__init__()
         self.output_name = output_name
         self.reduce = reduce
         self.avg_num_nodes = backbone.avg_num_nodes
+        hidden_channels = backbone.ffn_hidden_channels
+        if hidden_channels_override is not None:
+            hidden_channels = hidden_channels_override
         self.energy_block = FeedForwardNetwork(
             backbone.sphere_channels,
-            backbone.ffn_hidden_channels,
+            hidden_channels,
             1,
             backbone.lmax_list,
             backbone.mmax_list,

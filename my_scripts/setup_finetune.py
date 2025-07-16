@@ -100,7 +100,7 @@ def load_checkpoint(model, config, args):
     # Here, we load our fine-tuned model on the same task (including the head)
     if hasattr(args, "checkpoint_path") and args.checkpoint_path:
         print("Loading custom checkpoint =================")
-        root = Path(args.root_path) / "checkpoints/GemNet/"
+        root = Path(args.root_path) / "checkpoints/MSI/"
         ckpt_path = root / (args.checkpoint_path + ".ckpt")
         state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
         model.load_state_dict(state_dict, strict=False)

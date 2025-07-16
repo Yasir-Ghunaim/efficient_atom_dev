@@ -77,11 +77,11 @@ class EquiformerV2ForceHead(EqV2VectorHead):
 )
 @registry.register_model("equiformer_v2_energy_head")
 class EquiformerV2EnergyHead(EqV2ScalarHead):
-    def __init__(self, backbone, reduce: str = "sum"):
+    def __init__(self, backbone, hidden_channels_override: int = None, reduce: str = "sum"):
         logging.warning(
             "equiformerV2_energy_head (EquiformerV2EnergyHead) class is deprecated in favor of equiformerV2_scalar_head  (EqV2ScalarHead)"
         )
-        super().__init__(backbone, reduce=reduce)
+        super().__init__(backbone, hidden_channels_override=hidden_channels_override, reduce=reduce)
 
 
 @registry.register_model("equiformer_v2_backbone")
