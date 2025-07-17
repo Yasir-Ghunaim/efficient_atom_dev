@@ -814,9 +814,9 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
     def _construct_backbone(self):
         log.critical("Using regular backbone")
         if self.config.model_name == "gemnet":
-            backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone), args=self.config.args)
+            backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
         elif self.config.model_name == "equiformer_v2":
-            backbone = EquiformerV2Backbone(**dict(self.config.backbone), args = self.config.args)
+            backbone = EquiformerV2Backbone(**dict(self.config.backbone))
 
         return backbone
 

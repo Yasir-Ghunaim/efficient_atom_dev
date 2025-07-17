@@ -10,7 +10,7 @@ import math
 from collections.abc import Callable
 from functools import cache, partial
 from logging import getLogger
-from typing import Annotated, Generic, Literal, TypeAlias, assert_never, cast
+from typing import Union, Annotated, Generic, Literal, TypeAlias, assert_never, cast, Any, Optional
 from argparse import Namespace
 
 import torch
@@ -36,12 +36,15 @@ from torch_geometric.utils import dropout_edge
 from torch_scatter import scatter
 from torchmetrics import SumMetric
 from typing_extensions import TypeVar, override
+from pydantic import root_validator, ValidationError
 
 from ...datasets.pretrain_lmdb import PretrainDatasetConfig as PretrainDatasetConfigBase
 from ...datasets.pretrain_lmdb import PretrainLmdbDataset
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
-from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone, EquiformerV2EnergyHead, EquiformerV2ForceHead
 from ...models.gemnet.config import BackboneConfig
+from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone, EquiformerV2EnergyHead, EquiformerV2ForceHead
+from ...models.equiformer_v2.config import EquiformerV2Config
+
 from ...models.gemnet.layers.base_layers import ScaledSiLU
 from ...modules import transforms as T
 from ...modules.dataset import dataset_transform as DT
@@ -144,7 +147,8 @@ class PretrainConfig(BaseConfig):
         embedding_size=BackboneConfig.base().emb_size_atom,
     )
     """Configuration for the embedding layer."""
-    backbone: BackboneConfig = BackboneConfig.base()
+    backbone: Optional[Union[BackboneConfig, EquiformerV2Config]] = None
+    # backbone: Optional[BackboneConfig] = None
     """Configuration for the backbone."""
     output: OutputConfig = OutputConfig(num_mlps=5)
     """Configuration for the output head."""
@@ -233,14 +237,28 @@ class PretrainConfig(BaseConfig):
     ema: EMAConfig | None = None
     """Configuration for the exponential moving average."""
 
+    # Assign backbone typing 
+    @root_validator(pre=True)
+    def validate_backbone(cls, values):
+        backbone = values.get('backbone')
+        if isinstance(backbone, dict):
+            if 'attn_alpha_channels' in backbone:  # Attribute specific to EquiformerV2Config
+                values['backbone'] = EquiformerV2Config(**backbone)
+            elif 'num_spherical' in backbone:  # Attribute specific to BackboneConfig
+                values['backbone'] = BackboneConfig(**backbone)
+            else:
+                raise ValidationError("Invalid backbone configuration provided.")
+        return values
+
     @override
     def __post_init__(self):
         super().__post_init__()
 
         self.trainer.use_distributed_sampler = False
 
-        self.backbone.dropout = self.dropout
-        self.backbone.edge_dropout = self.edge_dropout
+        if isinstance(self.backbone, BackboneConfig):
+            self.backbone.dropout = self.dropout
+            self.backbone.edge_dropout = self.edge_dropout
 
 
 class Embedding(Base[PretrainConfig], nn.Module):
@@ -394,19 +412,23 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
     @staticmethod
     def _model_validate_config(config: TConfig):
-        assert (
-            config.activation.lower() == config.backbone.activation.lower()
-        ), f"{config.activation=} != {config.backbone.activation=}"
+        if isinstance(config.backbone, BackboneConfig):
+            assert (
+                config.activation.lower() == config.backbone.activation.lower()
+            ), f"{config.activation=} != {config.backbone.activation=}"
 
-        assert (
-            config.embedding.num_elements == config.backbone.num_elements
-        ), f"{config.embedding.num_elements=} != {config.backbone.num_elements=}"
-        assert (
-            config.embedding.embedding_size == config.backbone.emb_size_atom
-        ), f"{config.embedding.embedding_size=} != {config.backbone.emb_size_atom=}"
+            assert (
+                config.embedding.num_elements == config.backbone.num_elements
+            ), f"{config.embedding.num_elements=} != {config.backbone.num_elements=}"
+            assert (
+                config.embedding.embedding_size == config.backbone.emb_size_atom
+            ), f"{config.embedding.embedding_size=} != {config.backbone.emb_size_atom=}"
 
     def _construct_backbone(self):
-        backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
+        if self.config.model_name == "gemnet":
+            backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
+        elif self.config.model_name == "equiformer_v2":
+            backbone = EquiformerV2Backbone(**dict(self.config.backbone))
         return backbone
 
     @override
@@ -423,9 +445,9 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             self.embedding = Embedding(self.config)
             self.backbone = self._construct_backbone()
             self.output = Output(self.config)
+        
         elif self.config.model_name == "equiformer_v2":
-            # self.backbone = EquiformerV2Backbone()
-            self.backbone = EquiformerV2Backbone(**dict(self.config.backbone))
+            self.backbone = self._construct_backbone()
             self.output = EquiformerV2MultiOutput(self.config, self.backbone)
 
 
@@ -504,7 +526,8 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             h = self.embedding(batch)
             out: GOCBackboneOutput = self.backbone(batch, h=h)
             pred = self.output(batch, out)  # (n h), (n p h)
-        elif "equiformer_v2" in self.config.model_name:
+            
+        elif self.config.model_name == "equiformer_v2":
             out = self.backbone(batch) 
             pred = self.output(batch, out)
         
@@ -856,9 +879,16 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         data.atomic_numbers = data.atomic_numbers.long()
         data.natoms = self._to_int(data.natoms)
         data.sid = self._to_int(data.sid)
-        for graph_type in ["main", "a2a", "a2ee2a", "qint"]:
-            key = f"{graph_type}_num_neighbors"
-            setattr(data, key, self._to_int(data[key]))
+
+        if self.config.model_name == "gemnet":
+            for graph_type in ["main", "a2a", "a2ee2a", "qint"]:
+                key = f"{graph_type}_num_neighbors"
+                setattr(data, key, self._to_int(data[key]))
+        else:
+            for graph_type in ["main"]:
+                key = f"{graph_type}_num_neighbors"
+                setattr(data, key, self._to_int(data[key]))
+
 
         for attr in ("y", "force"):
             key = f"{attr}_scale"
@@ -898,7 +928,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         pbc: bool,
         *,
         training: bool,
-    ):
+    ):  
         aint_graph = generate_graph(
             data, cutoff=cutoffs.aint, max_neighbors=max_neighbors.aint, pbc=pbc
         )
@@ -911,21 +941,28 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             max_neighbors_orig=max_neighbors.aint,
         )
         main_graph = subselect(cutoffs.main, max_neighbors.main)
-        aeaint_graph = subselect(cutoffs.aeaint, max_neighbors.aeaint)
-        qint_graph = subselect(cutoffs.qint, max_neighbors.qint)
 
-        # We can't do this at the data level: This is because the batch collate_fn doesn't know
-        # that it needs to increment the "id_swap" indices as it collates the data.
-        # So we do this at the graph level (which is done in the GemNetOC `get_graphs_and_indices` method).
-        # main_graph = symmetrize_edges(main_graph, num_atoms=data.pos.shape[0])
-        qint_graph = tag_mask(data, qint_graph, tags=self.config.backbone.qint_tags)
+        if self.config.model_name == "gemnet":
+            aeaint_graph = subselect(cutoffs.aeaint, max_neighbors.aeaint)
+            qint_graph = subselect(cutoffs.qint, max_neighbors.qint)
 
-        graphs = {
-            "main": main_graph,
-            "a2a": aint_graph,
-            "a2ee2a": aeaint_graph,
-            "qint": qint_graph,
-        }
+            # We can't do this at the data level: This is because the batch collate_fn doesn't know
+            # that it needs to increment the "id_swap" indices as it collates the data.
+            # So we do this at the graph level (which is done in the GemNetOC `get_graphs_and_indices` method).
+            # main_graph = symmetrize_edges(main_graph, num_atoms=data.pos.shape[0])
+            qint_graph = tag_mask(data, qint_graph, tags=self.config.backbone.qint_tags)
+
+            graphs = {
+                "main": main_graph,
+                "a2a": aint_graph,
+                "a2ee2a": aeaint_graph,
+                "qint": qint_graph,
+            }
+        elif self.config.model_name == "equiformer_v2":
+            graphs = {
+                "main": main_graph
+            }
+
 
         for graph_type, graph in graphs.items():
             graph["num_neighbors"] = graph["edge_index"].shape[1]
