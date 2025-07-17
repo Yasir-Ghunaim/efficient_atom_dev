@@ -69,8 +69,13 @@ def jmp_l_pt_config_(config: PretrainConfig, args: argparse.Namespace):
     )
     # Regularization settings
     config.edge_dropout = 0.1
+    
     # EMA settings
-    config.ema = EMAConfig(decay=0.99)
+    if "gemnet" in config.model_name:
+        config.ema = EMAConfig(decay=0.99)
+    elif "equiformer_v2" in config.model_name:
+        config.ema = None  # Disable EMA for EquiformerV2
+
 
     # Set data config
     config.num_workers = args.num_workers

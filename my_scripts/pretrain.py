@@ -75,14 +75,15 @@ def run_training(
     print("Creating the Model =================")
     model = model_cls(config)
 
-    print("Fitting GemNet-OC model =================")
-    fit_scales_new(
-        config=config,
-        model=model,
-        backbone=lambda m: m.backbone
-    )
+    if args.model_name == "gemnet":
+        print("Fitting GemNet-OC model =================")
+        fit_scales_new(
+            config=config,
+            model=model,
+            backbone=lambda m: m.backbone
+        )
 
-    ensure_fitted(model)
+        ensure_fitted(model)
 
     trainer = Trainer(config)
     # trainer.validate(model)
