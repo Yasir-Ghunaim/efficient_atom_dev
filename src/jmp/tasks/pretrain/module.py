@@ -356,7 +356,7 @@ class EquiformerV2MultiOutput(nn.Module):
 
         # Create multiple heads, one for each task
         self.energy_heads = nn.ModuleList(
-            [EquiformerV2EnergyHead(backbone) for _ in self.tasks]
+            [EquiformerV2EnergyHead(backbone, reduce="mean") for _ in self.tasks]
         )
         self.force_heads = nn.ModuleList(
             [EquiformerV2ForceHead(backbone) for _ in self.tasks]

@@ -60,7 +60,7 @@ class EqV2ScalarHead(nn.Module, HeadInterface):
 
         output.index_add_(0, data.batch, node_output.view(-1))
         if self.reduce == "sum":
-            return {self.output_name: output / self.avg_num_nodes}
+            return {self.output_name: output} # / self.avg_num_nodes}
         elif self.reduce == "mean":
             return {self.output_name: output / data.natoms}
         else:
