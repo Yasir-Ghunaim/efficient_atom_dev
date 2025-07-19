@@ -50,6 +50,14 @@ def jmp_l_qm9_config_(config: QM9Config, target: QM9Target, base_path: Path, arg
     config.batch_size = 48
 
     if args.model_name == "equiformer_v2":
+        config.optimizer = AdamWConfig(
+            lr=args.lr,
+            amsgrad=False,
+            betas=(0.9, 0.95),
+            weight_decay=0, # no weight decay 
+        )
+        
+        config.backbone.use_pbc = False
         config.backbone.max_radius = 12.0
         config.backbone.max_neighbors = 500
 

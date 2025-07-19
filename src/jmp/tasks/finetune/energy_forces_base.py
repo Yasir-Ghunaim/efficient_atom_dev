@@ -127,7 +127,7 @@ class EnergyForcesModelBase(
                 bias=False,
             )
         elif self.config.model_name == "equiformer_v2":
-            self.out_energy = EquiformerV2EnergyHead(self.backbone, hidden_channels_override=256)
+            self.out_energy = EquiformerV2EnergyHead(self.backbone, hidden_channels_override=256, reduce="mean")
 
     @override
     def construct_output_heads(self, backbone: nn.Module):

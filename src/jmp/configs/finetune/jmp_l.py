@@ -75,6 +75,7 @@ def jmp_l_ft_config_(
         value=1.0,
         algorithm="value",
     )
+
     if config.model_name ==  "gemnet":
         # LR Scheduler settings
         warmup_epochs=0#5 
@@ -82,7 +83,6 @@ def jmp_l_ft_config_(
         if args.dataset_name == "qmof":
             warmup_epochs=0 
             warmup_start_lr_factor=1.0
-            
         
         config.lr_scheduler = WarmupCosRLPConfig(
             warmup_epochs=warmup_epochs,
@@ -118,15 +118,36 @@ def jmp_l_ft_config_(
             max_lr_scales,
         )
     elif config.model_name == "equiformer_v2":    
-        config.lr_scheduler = RLPConfig(
-            mode="min",
-            patience=3,
-            factor=0.8,
+        # config.lr_scheduler = RLPConfig(
+        #     mode="min",
+        #     patience=3,
+        #     factor=0.8,
+        # )
+
+        warmup_epochs=5
+        warmup_start_lr_factor=0.2
+        min_lr_factor=0.01
+
+        config.lr_scheduler = WarmupCosRLPConfig(
+            warmup_epochs=warmup_epochs,
+            warmup_start_lr_factor=warmup_start_lr_factor,
+            should_restart=False,
+            max_epochs=args.epochs,
+            min_lr_factor=min_lr_factor,
+            rlp=RLPConfig(patience=3, factor=0.8),
         )
 
-        # warmup_epochs=1
-        # warmup_start_lr_factor=0.2
-        # min_lr_factor=0.01
+        max_lr_scales = {
+            "embedding": 1.0,
+            "blocks_0": 1.0,
+            "blocks_1": 1.0,
+            "blocks_2": 1.0,
+            "blocks_3": 1.0,
+            "blocks_4": 1.0,
+            "blocks_5": 1.0,
+            "blocks_6": 1.0,
+            "blocks_7": 1.0,
+        }
 
         # config.lr_scheduler = WarmupCosRLPConfig(
         #     warmup_epochs=warmup_epochs,
@@ -136,6 +157,11 @@ def jmp_l_ft_config_(
         #     min_lr_factor=min_lr_factor,
         #     rlp=RLPConfig(patience=3, factor=0.8),
         # )
+        config.parameter_specific_optimizers = make_parameter_specific_optimizer_config(
+            config,
+            config.backbone.num_layers, 
+            max_lr_scales,
+        )
 
     # Checkpoint loading settings
     # We want to use EMA weights from pretraining
