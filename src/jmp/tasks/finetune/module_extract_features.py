@@ -6,6 +6,8 @@ from contextlib import ExitStack
 
 
 from jmp.models.gemnet.backbone_extract_features import GemNetOCWithFeatureExtraction
+from jmp.models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
+
 from jmp.models.gemnet.backbone import GOCBackboneOutput
 from jmp.tasks.finetune.base import FinetuneModelBase, FinetuneConfigBase
 from jmp.tasks.finetune.energy_forces_base import EnergyForcesModelBase
@@ -22,7 +24,10 @@ TConfig = TypeVar("TConfig", bound=FinetuneConfigBase)
 class FinetuneModelBaseFeatureExtraction(FinetuneModelBase[TConfig]):
     @override
     def _construct_backbone(self):
-        backbone = GemNetOCWithFeatureExtraction(self.config.backbone, **dict(self.config.backbone))
+        if self.config.model_name == "gemnet":
+            backbone = GemNetOCWithFeatureExtraction(self.config.backbone, **dict(self.config.backbone))
+        elif self.config.model_name == "equiformer_v2":
+            backbone = EquiformerV2Backbone(**dict(self.config.backbone))
         return backbone
     
     @override
