@@ -29,13 +29,18 @@ if TYPE_CHECKING:
 
 @registry.register_model("equiformerV2_vector_head")
 class EqV2VectorHead(nn.Module, HeadInterface):
-    def __init__(self, backbone: BackboneInterface, output_name: str = "forces"):
+    def __init__(self, backbone: BackboneInterface, hidden_channels_override: int = None, output_name: str = "forces"):
         super().__init__()
         self.output_name = output_name
         self.activation_checkpoint = backbone.activation_checkpoint
+
+        hidden_channels = backbone.attn_hidden_channels
+        if hidden_channels_override is not None:
+            hidden_channels = hidden_channels_override
+
         self.force_block = SO2EquivariantGraphAttention(
             backbone.sphere_channels,
-            backbone.attn_hidden_channels,
+            hidden_channels,
             backbone.num_heads,
             backbone.attn_alpha_channels,
             backbone.attn_value_channels,
