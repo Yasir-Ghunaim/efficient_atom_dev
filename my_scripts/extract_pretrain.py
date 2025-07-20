@@ -3,6 +3,11 @@ import os
 import argparse
 from collections import defaultdict
 from tqdm import tqdm
+import numpy as np
+
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Geometry import Point3D
 
 import torch
 from torch_scatter import scatter
@@ -40,6 +45,8 @@ def parse_args():
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
     parser.add_argument("--compute_sample_difficulty", action="store_true",
                         help="If set, compute per-sample difficulty using model loss")
+    parser.add_argument("--get_fingerprints", action="store_true",
+                    help="If set, extract ECFP4 fingerprints using RDKit from SMILES strings")
 
     args = parser.parse_args()
     args.root_path = global_config.get("root_path", None)
@@ -111,6 +118,146 @@ def get_dataset_and_model(config, args):
 
     dataset = model.train_dataset()
     return dataset, model
+
+
+
+def build_mol_from_xyz(atomic_numbers, pos):
+    pdb_block = ""
+    for i, (z, xyz) in enumerate(zip(atomic_numbers, pos)):
+        element = Chem.GetPeriodicTable().GetElementSymbol(int(z))
+        x, y, z_ = xyz.tolist()
+        pdb_block += (
+            f"HETATM{i+1:5d} {element:>2s}   MOL     1    "
+            f"{x:8.3f}{y:8.3f}{z_:8.3f}  1.00  0.00           {element:>2s}\n"
+        )
+    pdb_block += "END\n"
+
+    mol = Chem.MolFromPDBBlock(pdb_block, sanitize=False, removeHs=False)
+    if mol is None:
+        return None
+    try:
+        Chem.SanitizeMol(mol)
+    except:
+        return None
+    return mol
+
+
+def ase_to_rdkit(atoms):
+    mol = Chem.RWMol()
+    atomic_numbers = atoms.get_atomic_numbers()
+    positions = atoms.get_positions()
+
+    # Add atoms
+    for z in atomic_numbers:
+        mol.AddAtom(Chem.Atom(int(z)))
+
+    # Add conformer
+    conf = Chem.Conformer(len(atomic_numbers))
+    for i, pos in enumerate(positions):
+        conf.SetAtomPosition(i, Point3D(float(pos[0]), float(pos[1]), float(pos[2])))
+    mol.AddConformer(conf)
+
+    return mol
+
+
+def coords_from_atoms(atoms, conf):
+    """Build `dict` matching atom id to coordinates.
+
+    Parameters
+    ----------
+    atoms : list of int
+        Atom ids
+    conf : RDKit Conformer
+        Conformer from which to fetch coordinates
+
+    Returns
+    -------
+    dict : Dict matching atom id to 1-D array of coordinates.
+    """
+    coordinates = [
+        np.array(conf.GetAtomPosition(int(x)), dtype=float) for x in atoms
+    ]
+    return dict(zip(atoms, coordinates))
+
+def extract_fingerprints(dataset, args):
+    def collate_fn(data_list):
+        return Batch.from_data_list(data_list)
+
+
+    from ase.io import read
+    from e3fp.pipeline import fprints_from_mol
+
+    atoms_list = read("/ibex/project/c2261/datasets/ani1x/traj/train/C10H14N4O3.traj", index=":")
+    mol = ase_to_rdkit(atoms_list[0])
+
+    conf = mol.GetConformer()
+    atom_ids = list(range(mol.GetNumAtoms()))
+    coord_dict = coords_from_atoms(atom_ids, conf)
+
+    # Convert to full coordinate matrix
+    import numpy as np
+    coords = np.array([coord_dict[i] for i in atom_ids])
+    print(coords.shape)  # Should be (num_atoms, 3)
+
+
+    # conf = mol.GetConformer()
+    # coords = [conf.GetAtomPosition(i) for i in range(mol.GetNumAtoms())]
+    # print(len(coords), coords[0])  # Should print 31 and a Point3D
+
+    def custom_invariants(atom):
+        return [atom.GetAtomicNum()] 
+
+    fprints = fprints_from_mol(
+        mol,
+        fprint_params={
+            "exclude_floating": False,
+            "rdkit_invariants": False,  # <--- disables valence-dependent logic
+            "custom_invariants": custom_invariants,
+            "bits": 1024,
+        }
+    )
+
+
+    breakpoint()
+
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, num_workers=args.num_workers, collate_fn=collate_fn, shuffle=False)
+
+    fingerprints = []
+    failed = 0
+
+    for batch in tqdm(dataloader, desc="Extracting fingerprints"):
+        # Loop through each graph in the batch
+        for i in range(batch.num_graphs):
+            atomic_numbers = batch.atomic_numbers[batch.batch == i]
+            pos = batch.pos[batch.batch == i]
+            
+
+            mol = build_mol_from_xyz(atomic_numbers, pos)
+            if mol is None:
+                print("skip")
+                continue
+                # raise Exception("Failed to convert mol to SMILES")
+
+            fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=2048)
+            fingerprints.append({
+                "lmdb_idx": batch.lmdb_idx[i].item(),
+                "sid": batch.sid[i].item(),
+                "fid": batch.fid[i].item(),
+                "fingerprint": fp.ToBitString()
+            })
+
+    print(f"Total fingerprints extracted: {len(fingerprints)} | Failed: {failed}")
+
+    task_name = args.task
+    seed = args.seed
+    save_dir = Path(f"fingerprints")
+    save_dir.mkdir(parents=True, exist_ok=True)
+
+    output_path = save_dir / f"{task_name}_Seed{seed}.pkl"
+    with open(output_path, "wb") as f:
+        pickle.dump(fingerprints, f)
+
+    print(f"Saved fingerprints to {output_path}")
 
 
 # Feature extraction function
@@ -301,6 +448,8 @@ def main():
 
     if args.compute_sample_difficulty:
         compute_sample_difficulty(model, dataset, config, args)
+    elif args.get_fingerprints:
+        extract_fingerprints(dataset, args)
     else:
         extract_features(model, dataset, config, args)
 
