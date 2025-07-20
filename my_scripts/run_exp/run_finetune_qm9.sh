@@ -5,9 +5,9 @@
 #SBATCH -e output/gpu.%A.err
 #SBATCH --mail-type=FAIL
 #SBATCH --time=40:00:00
-#SBATCH --gres=gpu:v100:1
-#SBATCH --mem=96G
-#SBATCH --cpus-per-task=6
+#SBATCH --gres=gpu:v100:4
+#SBATCH --mem=300G
+#SBATCH --cpus-per-task=24
 
 #####
 hostname
@@ -16,10 +16,13 @@ conda activate efficient_atom
 #####
 
 cd ..
-CUDA_VISIBLE_DEVICES=0 python finetune.py \
+python finetune.py \
     --dataset_name "qm9" \
     --target "U_0" \
-    --lr 8.0e-5 \
-    --epochs 200 \
+    --lr 5e-4 \
+    --epochs 300 \
+    --model_name "equiformer_v2" \
+    --checkpoint_path "oc22_1M_5ep_eqv2_4jtwwm1v_EMA" \
     --enable_wandb \
-    --checkpoint_path "<checkpoint_name>"
+    # --scratch \
+    
