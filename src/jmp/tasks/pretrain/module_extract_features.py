@@ -9,6 +9,8 @@ from jmp.tasks.pretrain import PretrainModel
 from jmp.tasks.pretrain.module import Output, PretrainConfig
 from jmp.models.gemnet.backbone import GOCBackboneOutput
 from jmp.models.gemnet.backbone_extract_features import GemNetOCWithFeatureExtraction
+from jmp.models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
+
 
 TConfig = TypeVar(
     "TConfig", bound=PretrainConfig, default=PretrainConfig, infer_variance=True
@@ -57,7 +59,10 @@ TConfig = TypeVar(
 class PretrainModelWithFeatureExtraction(PretrainModel[TConfig]):
     @override
     def _construct_backbone(self):
-        backbone = GemNetOCWithFeatureExtraction(self.config.backbone, **dict(self.config.backbone))
+        if self.config.model_name == "gemnet":
+            backbone = GemNetOCWithFeatureExtraction(self.config.backbone, **dict(self.config.backbone))
+        elif self.config.model_name == "equiformer_v2":
+            backbone = EquiformerV2Backbone(**dict(self.config.backbone))
         return backbone
 
     @override
