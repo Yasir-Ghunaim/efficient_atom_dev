@@ -65,11 +65,11 @@ _AVG_DEGREE = 23.395238876342773  # IS2RE: 100k, max_radius = 5, max_neighbors =
 )
 @registry.register_model("equiformer_v2_force_head")
 class EquiformerV2ForceHead(EqV2VectorHead):
-    def __init__(self, backbone):
+    def __init__(self, backbone, hidden_channels_override: int = None):
         logging.warning(
             "equiformerV2_force_head (EquiformerV2ForceHead) class is deprecated in favor of equiformerV2_rank1_head  (EqV2Rank1Head)"
         )
-        super().__init__(backbone)
+        super().__init__(backbone, hidden_channels_override=hidden_channels_override)
 
 
 @deprecated(
