@@ -125,8 +125,16 @@ def jmp_l_rmd17_config_(
             rlp=RLPConfig(patience=25, factor=0.8),
         )
     elif config.model_name == "equiformer_v2":
-        config.lr_scheduler = RLPConfig(
-            mode="min",
-            patience=25,
-            factor=0.8,
+        # config.lr_scheduler = RLPConfig(
+        #     mode="min",
+        #     patience=25,
+        #     factor=0.8,
+        # )
+        config.lr_scheduler = WarmupCosRLPConfig(
+            warmup_epochs=5,
+            warmup_start_lr_factor=0.2,
+            should_restart=False,
+            max_epochs=args.epochs,
+            min_lr_factor=0.01,
+            rlp=RLPConfig(patience=25, factor=0.8),
         )
