@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument("--epochs", type=int, default=1, help="Number of training epochs")
     parser.add_argument("--root_path", type=str, help="Root path containing datasets and checkpoints")
-    parser.add_argument("--task", type=str, choices=["oc20", "oc22", "ani1x", "transition1x"],
+    parser.add_argument("--task", type=str, choices=["oc20", "oc22", "ani1x", "transition1x", "odac"],
                         required=True, help="Name of the pretraining task. Choose from: oc20, oc22, ani1x, transition1x.")
     parser.add_argument("--sampling_strategy", type=str, choices=["random", "balanced", "balancedNoRep", "stratified", "uniform"],
                         default="random", help="Sampling strategy to use: 'random', 'balanced', 'balancedNoRep', 'stratified', or 'uniform'")

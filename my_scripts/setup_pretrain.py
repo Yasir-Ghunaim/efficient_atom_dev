@@ -157,6 +157,31 @@ def configure_tasks(args):
                 "force": NormalizationConfig(mean=0.0, std=0.3591422140598297),
             },
         ),
+        "odac": TaskConfig(
+            name="odac",
+            train_dataset=PretrainDatasetConfig(
+                src=dataset_path / "odac/s2ef/train/",
+                metadata_path=dataset_path / "odac/s2ef/train_metadata.npz",
+                lin_ref=dataset_path / "odac/s2ef/linref.npz",
+                max_samples=train_samples_limit,
+                is_train=True,
+                args=args
+            ),
+            val_dataset=PretrainDatasetConfig(
+                src=dataset_path / "odac/s2ef/val/",
+                metadata_path=dataset_path / "odac/s2ef/val_metadata.npz",
+                lin_ref=dataset_path / "odac/s2ef/linref.npz",
+                max_samples=val_samples_limit,
+                is_train=False,
+                args=args
+            ),
+            energy_loss_scale=1.0,
+            force_loss_scale=10.0,
+            normalization={
+                "y": NormalizationConfig(mean=0.0, std=0.7627581438363593),
+                "force": NormalizationConfig(mean=0.0, std=0.04262716323137283),
+            },
+        ),
     }
 
     # Filter tasks based on dataset_names

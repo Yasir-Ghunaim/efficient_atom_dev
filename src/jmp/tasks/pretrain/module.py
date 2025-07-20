@@ -1035,6 +1035,32 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         return data
 
+    def odac_transform(self, data: BaseData, *, training: bool):
+        data = self._initial_data_transform(data)
+
+        assert (
+            config := self._task_config("odac")
+        ) is not None, "ODAC task is not configured"
+
+        # convert back these keys into required format for collation
+        data.natoms = int(data.natoms.item() if torch.is_tensor(data) else data.natoms)
+
+        data.atomic_numbers = data.atomic_numbers.long()
+        data.tags = data.tags.long()
+
+        data = self._generate_graphs(
+            data,
+            cutoffs=Cutoffs.from_constant(12.0),
+            max_neighbors=MaxNeighbors.from_goc_base_proportions(30),
+            pbc=True,
+            training=training,
+        )
+
+        data.y_scale = config.energy_loss_scale
+        data.force_scale = config.force_loss_scale
+
+        return data
+
     @staticmethod
     def _set_inf_cell(data: BaseData, max_length: float = 1000.0):
         data.cell = (torch.eye(3) * max_length).unsqueeze(dim=0)
