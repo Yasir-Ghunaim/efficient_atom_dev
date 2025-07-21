@@ -10,6 +10,16 @@ from functools import cache
 
 import numpy as np
 from jmp.datasets.pretrain_lmdb import PretrainDatasetConfig
+from pathlib import Path
+
+from .sampling_utils import (
+    get_molecule_df, 
+    apply_random_sampling,
+    apply_difficulty_sampling,
+    apply_class_balanced_sampling,
+    apply_stratified_sampling,
+    apply_naive_uniform_sampling,
+)
 
 class PretrainAseDbDataset(Dataset[BaseData]):
 
@@ -46,14 +56,12 @@ class PretrainAseDbDataset(Dataset[BaseData]):
     def __init__(self, config: PretrainDatasetConfig):
         self.config = config
         self.path = str(config.src)
-        self.seed = config.args.seed
-        self.max_samples = config.max_samples
-        self.is_train = config.is_train
-        # breakpoint()
 
-        # config_kwargs = {} 
+        is_train = config.is_train
+        seed = config.args.seed
+        max_samples = config.max_samples
 
-        # self.dataset = AseDBDataset(config=dict(src=self.path, **config_kwargs))
+
         # Wrap AseDBDataset
         self.dataset = AseDBDataset(config=dict(
             src=self.path,
@@ -62,15 +70,36 @@ class PretrainAseDbDataset(Dataset[BaseData]):
         ))
 
         self.total_len = len(self.dataset)
-        if self.max_samples is not None:
-            self.shuffled_indices = list(range(min(self.total_len, self.max_samples)))
-        else:
-            self.shuffled_indices = list(range(self.total_len))
 
         # Optional: load molecule_df for filtering or grouping
         # self.molecule_df = None
         # if self.is_train and hasattr(config.args, 'extract_features') and config.args.extract_features:
         #     self.molecule_df = get_molecule_df(Path(self.path))
+
+        # Extract molecule names
+        self.molecule_df = None
+        if is_train:
+            # Load molecule data when extracting features
+            if (hasattr(self.config.args, 'extract_features') and self.config.args.extract_features):
+                self.molecule_df = get_molecule_df(Path(self.path))
+
+        if is_train and max_samples is not None:
+            # "balanced", "balancedNoRep", "stratified" and "uniform" are only supported with self.config.args.extract_features
+            if self.config.args.sampling_strategy == "balanced":
+                self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, max_samples, seed, allow_repetition=True)
+            elif self.config.args.sampling_strategy == "balancedNoRep":
+                self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, max_samples, seed, allow_repetition=False)
+            elif self.config.args.sampling_strategy == "stratified":
+                self.shuffled_indices = apply_stratified_sampling(self.molecule_df, max_samples, seed)
+            elif self.config.args.sampling_strategy == "uniform":
+                self.shuffled_indices = apply_naive_uniform_sampling(self.molecule_df, max_samples, seed)
+            else:
+                self.shuffled_indices = apply_random_sampling(self.total_len, max_samples, seed)
+        else:
+            if self.max_samples is not None:
+                self.shuffled_indices = list(range(min(self.total_len, self.max_samples)))
+            else:
+                self.shuffled_indices = list(range(self.total_len))
 
     def __len__(self):
         return len(self.shuffled_indices)
@@ -85,7 +114,6 @@ class PretrainAseDbDataset(Dataset[BaseData]):
         data.lmdb_idx = true_idx
             
 
-
         # Rename data.energy to data.y exists
         if getattr(data, 'y', None) is None and hasattr(data, 'energy'):
             data.y = data.energy
@@ -96,8 +124,8 @@ class PretrainAseDbDataset(Dataset[BaseData]):
             data.force = data.forces
             # delattr(data, "forces")
 
-        # if self.molecule_df is not None:
-        #     row = self.molecule_df[(self.molecule_df['sid'] == data.sid) & (self.molecule_df['fid'] == data.fid)]
-        #     if not row.empty:
-        #         data.molecule_name = row.iloc[0]['Molecule']
+        if self.molecule_df is not None:
+            row = self.molecule_df[(self.molecule_df['sid'] == data.sid) & (self.molecule_df['fid'] == data.fid)]
+            if not row.empty:
+                data.molecule_name = row.iloc[0]['Molecule']
         return data
