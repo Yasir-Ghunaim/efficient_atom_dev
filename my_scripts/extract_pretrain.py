@@ -14,6 +14,8 @@ from jmp.tasks.pretrain import PretrainConfig, PretrainModel, PretrainModelWithF
 # from jmp.utils.state_dict_helper import update_gemnet_state_dict_keys
 from setup_pretrain import load_global_config, configure_model
 
+from jmp.utils.finetune_state_dict import filter_state_dict
+
 # Load global config
 global_config = load_global_config()
 
@@ -104,7 +106,14 @@ def get_dataset_and_model(config, args):
             for key, value in full_state_dict.items()
             if not (key.startswith("backbone.energy_block") or key.startswith("backbone.force_block"))
         }
-    model.load_state_dict(state_dict, strict=False)
+
+    if config.model_name == "equiformer_v2":
+        backbone_state_dict = filter_state_dict(state_dict, "backbone.")
+        model.backbone.load_state_dict(backbone_state_dict)
+        print("======= Loaded checkpoint for equiformer_v2")
+    else:
+        model.load_state_dict(state_dict, strict=False)
+        print("======= Loaded checkpoint for gemnet")
 
     # if config.model_name == "gemnet":
     #     load_scales_compat(model.backbone, scale_file)

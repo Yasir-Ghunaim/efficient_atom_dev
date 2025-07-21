@@ -142,7 +142,11 @@ def load_checkpoint(model, config, args):
                 for key, value in eqv2_state_dict.items()
                 if not (key.startswith("backbone.energy_block") or key.startswith("backbone.force_block"))
             }
-            model.load_state_dict(state_dict)
+
+            backbone_state_dict = filter_state_dict(state_dict, "backbone.")
+            model.backbone.load_state_dict(backbone_state_dict)
+            print("Loaded checkpoint for equiformer_v2")
+            # model.load_state_dict(state_dict)
 
 
 def configure_wandb(config, args):
