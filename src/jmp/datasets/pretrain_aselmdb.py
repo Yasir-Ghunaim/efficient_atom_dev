@@ -62,7 +62,10 @@ class PretrainAseDbDataset(Dataset[BaseData]):
         ))
 
         self.total_len = len(self.dataset)
-        self.shuffled_indices = list(range(min(self.total_len, self.max_samples)))
+        if self.max_samples is not None:
+            self.shuffled_indices = list(range(min(self.total_len, self.max_samples)))
+        else:
+            self.shuffled_indices = list(range(self.total_len))
 
         # Optional: load molecule_df for filtering or grouping
         # self.molecule_df = None
