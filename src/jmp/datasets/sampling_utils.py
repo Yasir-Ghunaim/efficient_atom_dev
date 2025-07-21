@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import torch
 import pandas as pd
 import numpy as np
@@ -6,6 +8,9 @@ from tqdm import tqdm
 import math
 
 def get_molecule_df(dataset_path):
+    if "oc22" in str(dataset_path):
+        dataset_path = Path("/ibex/ai/project/c2261/datasets/oc22/s2ef-total/train")
+
     path_parts = dataset_path.parts
     dataset_name = path_parts[path_parts.index("datasets") + 1]
 

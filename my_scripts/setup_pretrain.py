@@ -182,6 +182,32 @@ def configure_tasks(args):
                 "force": NormalizationConfig(mean=0.0, std=0.04262716323137283),
             },
         ),
+        "omat": TaskConfig(
+            name="omat",
+            train_dataset=PretrainDatasetConfig(
+                src=dataset_path / "omat/rattled-300-subsampled",  # Folder of .aselmdb files
+                metadata_path=None,  # Optional: can be None or point to metadata if needed
+                lin_ref=None,
+                max_samples=int(train_samples_limit*2),
+                is_train=True,
+                args=args,
+            ),
+            val_dataset=PretrainDatasetConfig(
+                src=dataset_path / "omat/rattled-300-subsampled",  # or point to val if you extract it separately
+                metadata_path=None,
+                lin_ref=None,
+                max_samples=val_samples_limit,
+                is_train=False,
+                args=args,
+            ),
+            energy_loss_scale=1.0,
+            force_loss_scale=10.0,
+            normalization={
+                "y": NormalizationConfig(mean=0.0, std=1.0),     # ← Placeholder: update with real stats
+                "force": NormalizationConfig(mean=0.0, std=1.0), # ← Placeholder: update with real stats
+            },
+        ),
+
     }
 
     # Filter tasks based on dataset_names

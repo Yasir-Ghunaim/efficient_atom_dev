@@ -81,7 +81,9 @@ class PretrainModelWithFeatureExtraction(PretrainModel[TConfig]):
         elif self.config.model_name == "equiformer_v2":
             features_dict = {}
             out = self.backbone(batch)
-            node_embedding = out["node_embedding"].embedding
+            if out is None: #in case the graph includes atoms with high atomic number (>90)
+                return None
+            node_embedding = out["node_embedding"].embedding            
             node_size = node_embedding.shape[0]
             features_dict['node'] = node_embedding.reshape(node_size, -1)
         return features_dict 
