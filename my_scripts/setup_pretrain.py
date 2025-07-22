@@ -163,7 +163,7 @@ def configure_tasks(args):
                 src=dataset_path / "odac/s2ef/train/",
                 metadata_path=dataset_path / "odac/s2ef/train_metadata.npz",
                 lin_ref=dataset_path / "odac/s2ef/linref.npz",
-                max_samples=train_samples_limit# int(train_samples_limit*1.2),
+                max_samples=train_samples_limit,# int(train_samples_limit*1.2),
                 is_train=True,
                 args=args
             ),
