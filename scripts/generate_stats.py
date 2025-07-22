@@ -8,6 +8,7 @@ LICENSE file in the root directory of this source tree.
 
 import warnings
 import argparse
+import json
 from pathlib import Path
 from typing import assert_never
 
@@ -17,6 +18,7 @@ from torch_geometric.data.data import BaseData
 from tqdm import tqdm
 
 from jmp.datasets.finetune.base import LmdbDataset as FinetuneLmdbDataset
+from jmp.datasets.finetune.base_aselmdb import FinetuneAseLMDBDataset
 from jmp.datasets.pretrain_lmdb import PretrainDatasetConfig, PretrainLmdbDataset
 from jmp.datasets.pretrain_aselmdb import PretrainAseDbDataset
 
@@ -62,18 +64,19 @@ def main():
     args = parser.parse_args()
 
     src: Path = args.src
-    dest: Path = args.dest or src / "energy_force_stats.npz"
+    dest: Path = args.dest or src / "energy_force_stats.json"
     dataset_type: str = args.type
 
     assert src.exists(), f"{src} does not exist"
-    assert dest.suffix == ".npz", f"{dest} must be a .npz file"
+    assert dest.suffix == ".json", f"{dest} must be a .json file"
     assert not dest.exists(), f"{dest} already exists"
 
     match dataset_type:
         case "pretrain":
             dataset = PretrainLmdbDataset(PretrainDatasetConfig(src=src))
         case "pretrain_omat":
-            dataset = PretrainAseDbDataset(PretrainDatasetConfig(src=src, args=argparse.Namespace(number_of_samples=False, seed=0)))
+            # dataset = PretrainAseDbDataset(PretrainDatasetConfig(src=src, args=argparse.Namespace(number_of_samples=False, seed=0)))
+            dataset = FinetuneAseLMDBDataset(src=src, args=argparse.Namespace(seed=0))
         case "finetune":
             dataset = FinetuneLmdbDataset(src=src, args=argparse.Namespace(number_of_samples=False, seed=0))
         case _:
@@ -88,11 +91,16 @@ def main():
     print("Force mean:", force_mean)
     print("Force std:", force_std)
 
-    # np.savez(dest,
-    #          energy_mean=energy_mean,
-    #          energy_std=energy_std,
-    #          force_mean=force_mean,
-    #          force_std=force_std)
+    stats_dict = {
+        "energy_mean": float(energy_mean),
+        "energy_std": float(energy_std),
+        "force_mean": force_mean.tolist(),
+        "force_std": force_std.tolist(),
+        "force_std_scalar": float(np.mean(force_std))
+    }
+
+    with open(dest, "w") as f:
+        json.dump(stats_dict, f, indent=2)
 
 
 if __name__ == "__main__":

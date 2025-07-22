@@ -20,8 +20,8 @@ from ...tasks.finetune.base import (
 )
 
 STATS: dict[str, dict[str, NC]] = {
-    "y": NC(mean=0.0, std=30.74),
-    "force": NC(mean=0.0, std=4.45),
+    "y": NC(mean=-61.17147619717258, std=30.74026854956568),
+    "force": NC(mean=0.0, std=4.445453643798828),
 }
 
 
@@ -37,16 +37,16 @@ def jmp_l_omat_config_(
     # )
 
     config.cutoff = 12.0
-    config.max_neighbors = 30
+    config.max_neighbors = 20
     # config.backbone.max_radius = config.cutoff
     # config.backbone.max_neighbors = config.max_neighbors
 
     # Set data config
-    config.batch_size = 20
+    config.batch_size = 50
 
     # Set up dataset
-    config.train_dataset = DC.omat_config(base_path, "train", args=args)
-    config.val_dataset = DC.omat_config(base_path, "val", args=args)
+    config.train_dataset = DC.omat_config(base_path, "train", args=args)#, max_samples=2_000_000)
+    config.val_dataset = DC.omat_config(base_path, "val", args=args, max_samples=2_500)
     config.test_dataset = DC.omat_config(base_path, "val", args=args)
 
     # OMAT specific settings

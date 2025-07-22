@@ -18,11 +18,11 @@ from .energy_forces_base import EnergyForcesConfigBase, EnergyForcesModelBase
 
 
 class OMATConfig(EnergyForcesConfigBase):
-    graph_scalar_loss_coefficients: dict[str, float] = {"y": 1.0}
-    node_vector_loss_coefficients: dict[str, float] = {"force": 10.0}
+    graph_scalar_loss_coefficients: dict[str, float] = {"y": 20.0}
+    node_vector_loss_coefficients: dict[str, float] = {"force": 20.0}
 
     cutoff: float = 12.0
-    max_neighbors: int = 30
+    max_neighbors: int = 20
 
 
 class OMATModel(EnergyForcesModelBase[OMATConfig]):
