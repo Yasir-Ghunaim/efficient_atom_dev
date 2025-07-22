@@ -203,7 +203,8 @@ def pdbbind_config(split: Split):
 def omat_config(
     base_path: Path,
     split: Split,
-    args: argparse.Namespace = None
+    args: argparse.Namespace = None,
+    max_samples = None
 ):
     lmdb_path = base_path / f"{split}" / "rattled-300-subsampled"
     assert lmdb_path.exists(), (
@@ -211,5 +212,5 @@ def omat_config(
         f"Please check if the root path '{args.root_path}' contains the correct dataset."
     )
 
-    config = FinetuneAseLmdbDatasetConfig(src=lmdb_path, args=args)
+    config = FinetuneAseLmdbDatasetConfig(src=lmdb_path, args=args, max_samples=max_samples)
     return config

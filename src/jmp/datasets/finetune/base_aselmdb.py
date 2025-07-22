@@ -53,15 +53,16 @@ class FinetuneAseLMDBDataset(Dataset[T], ContextDecorator):
 
         self.total_len = len(self.dataset)
 
-        if self.max_samples is None:
-            self.max_samples = self.total_len
-        elif self.max_samples > self.total_len:
+        if self.max_samples is not None and self.max_samples > self.total_len:
             self.max_samples = self.total_len
 
         # if self.extract_features:
         #     self.shuffled_indices = apply_random_sampling(self.total_len, self.max_samples, args.seed)
         # else:
-        self.shuffled_indices = list(range(self.total_len))
+        if self.max_samples is not None:
+            self.shuffled_indices = apply_random_sampling(self.total_len, self.max_samples, args.seed)
+        else: 
+            self.shuffled_indices = list(range(self.total_len))
 
 
     def __len__(self) -> int:

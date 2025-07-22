@@ -159,6 +159,7 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
 
     extracted_data = []
     valid_sample_count = 0
+    max_samples = args.train_samples_limit
 
     pbar = tqdm(dataloader, desc="Extracting features")
     for sample in pbar:

@@ -341,6 +341,8 @@ class FinetuneAseLmdbDatasetConfig(CommonDatasetConfig):
     args: Namespace = Namespace()
     """Additional arguments"""
 
+    max_samples: int | None = None
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -349,7 +351,7 @@ class FinetuneAseLmdbDatasetConfig(CommonDatasetConfig):
             self.metadata_path = self.src / "metadata.npz"
 
     def create_dataset(self):
-        return FinetuneAseLMDBDataset(src=self.src, metadata_path=self.metadata_path, args=self.args)
+        return FinetuneAseLMDBDataset(src=self.src, metadata_path=self.metadata_path, args=self.args, max_samples=self.max_samples)
 
 
 class FinetunePDBBindDatasetConfig(PDBBindConfig, CommonDatasetConfig):
