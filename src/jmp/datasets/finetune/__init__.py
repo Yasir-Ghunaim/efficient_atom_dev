@@ -8,4 +8,4 @@ LICENSE file in the root directory of this source tree.
 
 from .base import LmdbDataset
 
-__all__ = ["LmdbDataset"]
+__all__ = ["LmdbDataset", "FinetuneAseLMDBDataset"]

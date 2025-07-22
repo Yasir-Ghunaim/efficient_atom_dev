@@ -38,6 +38,7 @@ from pydantic import root_validator, ValidationError
 
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2EnergyHead
 from ...datasets.finetune.base import LmdbDataset
+from ...datasets.finetune.base_aselmdb import FinetuneAseLMDBDataset
 from ...datasets.finetune_pdbbind import PDBBindConfig, PDBBindDataset
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
@@ -70,6 +71,9 @@ from ..config import (
     optimizer_from_config,
 )
 from .metrics import FinetuneMetrics, MetricPair, MetricsConfig
+
+from jmp.fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
+from jmp.fairchem.core.datasets.atomic_data import AtomicData
 
 log = getLogger(__name__)
 
@@ -325,6 +329,29 @@ class FinetuneLmdbDatasetConfig(CommonDatasetConfig):
         return LmdbDataset(src=self.src, metadata_path=self.metadata_path, args=self.args)
 
 
+class FinetuneAseLmdbDatasetConfig(CommonDatasetConfig):
+    name: Literal["aselmdb"] = "aselmdb"
+
+    src: Path
+    """Path to the LMDB file or directory containing LMDB files."""
+
+    metadata_path: Path | None = None
+    """Path to the metadata npz file containing the number of atoms in each structure."""
+
+    args: Namespace = Namespace()
+    """Additional arguments"""
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # If metadata_path is not provided, assume it is src/metadata.npz
+        if self.metadata_path is None:
+            self.metadata_path = self.src / "metadata.npz"
+
+    def create_dataset(self):
+        return FinetuneAseLMDBDataset(src=self.src, metadata_path=self.metadata_path, args=self.args)
+
+
 class FinetunePDBBindDatasetConfig(PDBBindConfig, CommonDatasetConfig):
     name: Literal["pdbbind"] = "pdbbind"
 
@@ -333,7 +360,7 @@ class FinetunePDBBindDatasetConfig(PDBBindConfig, CommonDatasetConfig):
 
 
 FinetuneDatasetConfig: TypeAlias = Annotated[
-    FinetuneLmdbDatasetConfig | FinetunePDBBindDatasetConfig,
+    FinetuneLmdbDatasetConfig | FinetunePDBBindDatasetConfig | FinetuneAseLmdbDatasetConfig,
     Field(discriminator="name"),
 ]
 
@@ -1798,4 +1825,7 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
         return data
 
     def collate_fn(self, data_list: list[BaseData]):
-        return Batch.from_data_list(data_list)
+        if isinstance(data_list[0], AtomicData):
+            return atomicdata_list_to_batch(data_list)
+        else:
+            return Batch.from_data_list(data_list)

@@ -14,6 +14,7 @@ from .qm9 import QM9Config, QM9Model
 from .qmof import QMOFConfig, QMOFModel
 from .rmd17 import RMD17Config, RMD17Model
 from .spice import SPICEConfig, SPICEModel
+from .omat import OMATConfig, OMATModel
 
 __all__ = [
     "FinetuneConfigBase",
@@ -32,4 +33,6 @@ __all__ = [
     "RMD17Model",
     "SPICEConfig",
     "SPICEModel",
+    "OMATConfig",
+    "OMATModel",
 ]

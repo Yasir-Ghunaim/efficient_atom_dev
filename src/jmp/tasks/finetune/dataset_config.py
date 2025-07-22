@@ -11,7 +11,8 @@ from pathlib import Path
 from typing import Literal, TypeAlias
 
 from ...modules.dataset.common import DatasetAtomRefConfig
-from .base import FinetuneLmdbDatasetConfig, FinetunePDBBindDatasetConfig
+from .base import FinetuneLmdbDatasetConfig, FinetunePDBBindDatasetConfig, FinetuneAseLmdbDatasetConfig
+
 from .matbench import MatbenchDataset, MatbenchFold
 from .md22 import MD22Molecule
 from .rmd17 import RMD17Molecule
@@ -196,4 +197,19 @@ def spice_config(
 
 def pdbbind_config(split: Split):
     config = FinetunePDBBindDatasetConfig(split=split)
+    return config
+
+
+def omat_config(
+    base_path: Path,
+    split: Split,
+    args: argparse.Namespace = None
+):
+    lmdb_path = base_path / f"{split}" / "rattled-300-subsampled"
+    assert lmdb_path.exists(), (
+        f"{lmdb_path} does not exist. "
+        f"Please check if the root path '{args.root_path}' contains the correct dataset."
+    )
+
+    config = FinetuneAseLmdbDatasetConfig(src=lmdb_path, args=args)
     return config

@@ -10,6 +10,7 @@ from jmp.configs.finetune.md22 import jmp_l_md22_config_
 from jmp.configs.finetune.spice import jmp_l_spice_config_
 from jmp.configs.finetune.matbench import jmp_l_matbench_config_
 from jmp.configs.finetune.qmof import jmp_l_qmof_config_
+from jmp.configs.finetune.omat import jmp_l_omat_config_
 
 from jmp.tasks.finetune.rmd17 import RMD17Config, RMD17Model
 from jmp.tasks.finetune.qm9 import QM9Config, QM9Model
@@ -17,6 +18,7 @@ from jmp.tasks.finetune.md22 import MD22Config, MD22Model
 from jmp.tasks.finetune.spice import SPICEConfig, SPICEModel
 from jmp.tasks.finetune.matbench import MatbenchConfig, MatbenchModel
 from jmp.tasks.finetune.qmof import QMOFConfig, QMOFModel
+from jmp.tasks.finetune.omat import OMATConfig, OMATModel
 
 from jmp.tasks.finetune.module_extract_features import (
     RMD17ModelFeatureExtraction,
@@ -85,6 +87,12 @@ def get_configs(dataset_name: str, target: str, args, extract_features = False):
         jmp_l_ft_config_(config, ckpt_path, args=args)  
         jmp_l_qmof_config_(config, base_path, target=target, args=args)
         init_model = QMOFModelFeatureExtraction if extract_features else QMOFModel
+
+    elif dataset_name == "omat":
+        config = OMATConfig.draft()
+        jmp_l_ft_config_(config, ckpt_path, args=args)
+        jmp_l_omat_config_(config, base_path, args=args)
+        init_model = OMATModel
     
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
