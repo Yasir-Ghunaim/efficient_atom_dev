@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
     # Path to the OMAT lmdb training files
     # TODO: Update this path
-    lmdb_dir = "/ibex/project/c2261/datasets/omat/rattled-300-subsampled/"
+    lmdb_dir = "/ibex/project/c2261/datasets/omat/train/rattled-300-subsampled/"
 
     # Load metadata
     # with open(metadata_file, "rb") as f:

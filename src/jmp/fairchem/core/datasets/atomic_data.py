@@ -225,7 +225,7 @@ class AtomicData:
             self.pos.shape[0]
             == self.atomic_numbers.shape[0]
             == self.num_nodes
-            == torch.tensor(self.natoms).sum().item()
+            == sum(self.natoms)
         )
         assert self.pos.dim() == 2
         assert self.pos.shape[1] == 3

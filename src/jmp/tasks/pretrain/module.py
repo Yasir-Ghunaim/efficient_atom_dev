@@ -42,6 +42,8 @@ from ...datasets.pretrain_lmdb import PretrainDatasetConfig as PretrainDatasetCo
 from ...datasets.pretrain_lmdb import PretrainLmdbDataset
 from ...datasets.pretrain_aselmdb import PretrainAseDbDataset
 
+from jmp.fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
+from jmp.fairchem.core.datasets.atomic_data import AtomicData
 
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.gemnet.config import BackboneConfig
@@ -814,7 +816,11 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         return dataset
 
     def collate_fn(self, data_list: list[BaseData]):
-        return Batch.from_data_list(data_list, exclude_keys=self.config.exclude_keys)
+        if isinstance(data_list[0], AtomicData):
+            return atomicdata_list_to_batch(data_list, exclude_keys=self.config.exclude_keys)
+        else:
+            return Batch.from_data_list(data_list, exclude_keys=self.config.exclude_keys)
+
 
     def distributed_sampler(self, dataset: Dataset, shuffle: bool):
         return DistributedSampler(

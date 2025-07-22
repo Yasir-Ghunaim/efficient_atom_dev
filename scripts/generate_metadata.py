@@ -13,6 +13,7 @@ from typing import assert_never
 import numpy as np
 from jmp.datasets.finetune.base import LmdbDataset as FinetuneLmdbDataset
 from jmp.datasets.pretrain_lmdb import PretrainDatasetConfig, PretrainLmdbDataset
+from jmp.datasets.pretrain_aselmdb import PretrainAseDbDataset
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.data.data import BaseData
 from tqdm import tqdm
@@ -54,7 +55,7 @@ def main():
     parser.add_argument(
         "--type",
         type=str,
-        choices=["pretrain", "finetune"],
+        choices=["pretrain", "pretrain_omat", "finetune"],
         help="Type of dataset to gather metadata from.",
         required=True,
     )
@@ -88,12 +89,14 @@ def main():
     assert dest.suffix == ".npz", f"{dest} is not a .npz file"
     assert not dest.exists(), f"{dest} already exists"
 
-    assert dataset_type in ("pretrain", "finetune"), f"{dataset_type} is not valid"
+    assert dataset_type in ("pretrain", "pretrain_omat," "finetune"), f"{dataset_type} is not valid"
 
     # Load dataset
     match dataset_type:
         case "pretrain":
             dataset = PretrainLmdbDataset(PretrainDatasetConfig(src=src))
+        case "pretrain_omat":
+            dataset = PretrainAseDbDataset(PretrainDatasetConfig(src=src))
         case "finetune":
             dataset = FinetuneLmdbDataset(src=src)
         case _:
