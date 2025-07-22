@@ -892,7 +892,13 @@ def atomicdata_list_to_batch(
     batched_data_dict["sid"] = torch.cat(sid_list, dim=0)
     batched_data_dict["fid"] = torch.cat(fid_list, dim=0)
     batched_data_dict["lmdb_idx"] = torch.cat(lmdb_idx_list, dim=0)
-    
+
+    for key, value in batched_data_dict.items():
+        if isinstance(value, list) and all(isinstance(v, (int, float)) for v in value):
+            # Convert list of int/float to tensor
+            batched_data_dict[key] = torch.tensor(value)
+
+        
     atomic_data_batch = AtomicData.from_dict(batched_data_dict)
     atomic_data_batch.assign_batch_stats(slices, cumsum, cat_dims, natoms_list)
 
