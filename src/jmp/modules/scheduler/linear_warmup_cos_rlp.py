@@ -8,6 +8,7 @@ LICENSE file in the root directory of this source tree.
 
 from logging import getLogger
 from typing import Any
+import warnings
 
 import torch
 from torch.optim import Optimizer
@@ -48,9 +49,15 @@ class PerParamGroupLinearWarmupCosineAnnealingRLPLR(
 
             max_epochs_setting = settings.get("max_epochs", None)
             if max_epochs_setting is not None:
-                assert (
-                    max_epochs_setting == max_epochs
-                ), f"max_epochs must be {max_epochs}"
+                # assert (
+                #     max_epochs_setting == max_epochs
+                # ), f"max_epochs must be {max_epochs}"
+                if max_epochs_setting != max_epochs:
+                    warnings.warn(
+                        f"max_epochs in config ({max_epochs_setting}) does not match computed value ({max_epochs}). "
+                        f"Overriding to {max_epochs}."
+                    )
+                    settings["max_epochs"] = max_epochs
             else:
                 settings["max_epochs"] = max_epochs
 

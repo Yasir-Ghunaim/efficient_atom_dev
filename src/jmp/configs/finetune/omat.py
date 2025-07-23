@@ -42,15 +42,17 @@ def jmp_l_omat_config_(
     # config.backbone.max_neighbors = config.max_neighbors
 
     # Set data config
-    config.batch_size = 50
+    config.batch_size = 60
 
     # Set up dataset
     config.train_dataset = DC.omat_config(base_path, "train", args=args)#, max_samples=2_000_000)
-    config.val_dataset = DC.omat_config(base_path, "val", args=args, max_samples=2_500)
+    config.val_dataset = DC.omat_config(base_path, "val", args=args)#, max_samples=2_500)
     config.test_dataset = DC.omat_config(base_path, "val", args=args)
 
     # OMAT specific settings
     config.primary_metric = PrimaryMetricConfig(name="force_mae", mode="min")
+
+    config.trainer.val_check_interval = 0.25
 
     # Gradient forces
     config.model_type = "energy_forces"

@@ -83,15 +83,25 @@ def jmp_l_ft_config_(
         if args.dataset_name == "qmof":
             warmup_epochs=0 
             warmup_start_lr_factor=1.0
-        
-        config.lr_scheduler = WarmupCosRLPConfig(
-            warmup_epochs=warmup_epochs,
-            warmup_start_lr_factor=warmup_start_lr_factor,
-            should_restart=False,
-            max_epochs=32,
-            min_lr_factor=0.1,
-            rlp=RLPConfig(patience=3, factor=0.8),
-        )
+
+        if args.dataset_name == "omat":
+            config.lr_scheduler = WarmupCosRLPConfig(
+                warmup_steps=8000,
+                warmup_start_lr_factor=1.0e-1,
+                should_restart=False,
+                min_lr_factor=0.1,
+                rlp=RLPConfig(patience=3, factor=0.8),
+                # max_epochs=args.epochs,
+            )
+        else:
+            config.lr_scheduler = WarmupCosRLPConfig(
+                warmup_epochs=warmup_epochs,
+                warmup_start_lr_factor=warmup_start_lr_factor,
+                should_restart=False,
+                max_epochs=32,
+                min_lr_factor=0.1,
+                rlp=RLPConfig(patience=3, factor=0.8),
+            )
         # LLRD Settings
         if args.large:
             max_lr_scales = {
