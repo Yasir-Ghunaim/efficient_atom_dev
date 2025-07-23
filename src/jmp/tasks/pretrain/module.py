@@ -114,6 +114,8 @@ class TaskConfig(TypedConfig):
     """Scale factor for the energy loss."""
     force_loss_scale: float = 1.0
     """Scale factor for the force loss."""
+    pos_loss_scale: float = 1.0
+    """Scale factor for the position loss."""
 
     normalization: dict[str, NormalizationConfig] | None = None
     """
@@ -291,16 +293,26 @@ class Output(Base[PretrainConfig], nn.Module):
         ):
             return ([emb_size] * num_mlps) + [num_targets]
 
-        self.out_energy = TypedModuleList(
-            [
-                self.mlp(
-                    dims(self.config.backbone.emb_size_atom),
-                    activation=self.config.activation_cls,
-                )
-                for _ in self.config.tasks
-            ]
-        )
-        self.out_forces = TypedModuleList(
+        # self.out_energy = TypedModuleList(
+        #     [
+        #         self.mlp(
+        #             dims(self.config.backbone.emb_size_atom),
+        #             activation=self.config.activation_cls,
+        #         )
+        #         for _ in self.config.tasks
+        #     ]
+        # )
+        # self.out_forces = TypedModuleList(
+        #     [
+        #         self.mlp(
+        #             dims(self.config.backbone.emb_size_edge),
+        #             activation=self.config.activation_cls,
+        #         )
+        #         for _ in self.config.tasks
+        #     ]
+        # )
+
+        self.out_pos = TypedModuleList(
             [
                 self.mlp(
                     dims(self.config.backbone.emb_size_edge),
@@ -312,8 +324,9 @@ class Output(Base[PretrainConfig], nn.Module):
 
     @override
     def forward(self, data: BaseData, backbone_out: GOCBackboneOutput):
-        energy = backbone_out["energy"]
-        forces = backbone_out["forces"]
+        # energy = backbone_out["energy"]
+        # forces = backbone_out["forces"]
+        positions = backbone_out["forces"]
         V_st = backbone_out["V_st"]
         idx_t = backbone_out["idx_t"]
 
@@ -321,31 +334,43 @@ class Output(Base[PretrainConfig], nn.Module):
         n_molecules = int(torch.max(batch).item() + 1)
         n_atoms = data.atomic_numbers.shape[0]
 
-        energy_list: list[torch.Tensor] = []
-        forces_list: list[torch.Tensor] = []
+        pos_list: list[torch.Tensor] = []
 
-        for energy_mlp, forces_mlp, task in zip(
-            self.out_energy, self.out_forces, self.config.tasks
+        for out_mlp, task in zip(
+            self.out_pos, self.config.tasks
         ):
-            E_t = energy_mlp(energy)  # (n_atoms, 1)
-            E_t = scatter(
-                E_t,
-                batch,
-                dim=0,
-                dim_size=n_molecules,
-                reduce=task.node_energy_reduction,
-            )
-            energy_list.append(E_t)  # (bsz, 1)
+            P_st = out_mlp(positions)  # (n_edges, 1)
+            P_st = P_st * V_st  # (n_edges, 3)
+            P_t = scatter(P_st, idx_t, dim=0, dim_size=n_atoms, reduce="sum")
+            pos_list.append(P_t)  # (n_atoms, 3)
 
-            F_st = forces_mlp(forces)  # (n_edges, 1)
-            F_st = F_st * V_st  # (n_edges, 3)
-            F_t = scatter(F_st, idx_t, dim=0, dim_size=n_atoms, reduce="sum")
-            forces_list.append(F_t)  # (n_atoms, 3)
+        P, _ = pack(pos_list, "n_atoms p *")
 
-        E, _ = pack(energy_list, "bsz *")
-        F, _ = pack(forces_list, "n_atoms p *")
+        # energy_list: list[torch.Tensor] = []
+        # forces_list: list[torch.Tensor] = []
 
-        return E, F
+        # for energy_mlp, forces_mlp, task in zip(
+        #     self.out_energy, self.out_forces, self.config.tasks
+        # ):
+        #     E_t = energy_mlp(energy)  # (n_atoms, 1)
+        #     E_t = scatter(
+        #         E_t,
+        #         batch,
+        #         dim=0,
+        #         dim_size=n_molecules,
+        #         reduce=task.node_energy_reduction,
+        #     )
+        #     energy_list.append(E_t)  # (bsz, 1)
+
+        #     F_st = forces_mlp(forces)  # (n_edges, 1)
+        #     F_st = F_st * V_st  # (n_edges, 3)
+        #     F_t = scatter(F_st, idx_t, dim=0, dim_size=n_atoms, reduce="sum")
+        #     forces_list.append(F_t)  # (n_atoms, 3)
+
+        # E, _ = pack(energy_list, "bsz *")
+        # F, _ = pack(forces_list, "n_atoms p *")
+
+        return P
 
 
 class EquiformerV2MultiOutput(nn.Module):
@@ -539,6 +564,52 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             num_classes=len(self.config.tasks),
         ).bool()
 
+
+    def _position_loss(
+        self, batch: BaseData, pred_pos: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.debug:
+            assert pred_pos.shape[:2] == batch.pos_target.shape, \
+                f"pred: {pred_pos.shape}, target: {batch.pos_target.shape}"
+
+        pred = rearrange(pred_pos, "n p t -> n t p")  # (n_atoms, num_tasks, 3)
+        target = rearrange(batch.pos_target, "n p -> n 1 p").expand_as(pred)  # (n_atoms, num_tasks, 3)
+
+        mask = batch.task_mask[batch.batch]  # (n_atoms, num_tasks)
+        if self.config.train_on_free_atoms_only:
+            mask = mask & rearrange(~batch.fixed, "n -> n 1")
+
+        position_loss = F.pairwise_distance(pred, target, p=2.0)  # (n_atoms, num_tasks)
+
+        if (scale := getattr(batch, "pos_scale", None)) is not None:
+            scale = scale[batch.batch]
+            if self.config.train_on_free_atoms_only:
+                scale = scale[~batch.fixed]
+            position_loss = position_loss * scale
+
+        # if (scale := getattr(batch, "position_scale_node", None)) is not None:
+        #     if self.config.train_on_free_atoms_only:
+        #         scale = scale[~batch.fixed]
+        #     position_loss = position_loss * scale
+
+        position_loss = position_loss.masked_fill(~mask, 0.0)
+
+        if self.config.log_task_losses:
+            with torch.no_grad():
+                for task_idx, task in enumerate(self.config.tasks):
+                    task_mask = mask & self._task_idx_onehot(task_idx)
+                    task_position_loss = position_loss.masked_fill(~task_mask, 0.0)
+                    self.log(
+                        f"{task.name}/position_loss",
+                        self._reduce_loss(
+                            task_position_loss,
+                            task_mask,
+                            reduction=self.config.force_loss_reduction,
+                        ),
+                    )
+
+        return position_loss, mask
+
     def _force_loss(
         self, batch: BaseData, forces: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -640,6 +711,31 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         return loss
 
+    def compute_position_loss(
+        self, batch: BaseData, pred_pos: torch.Tensor
+    ):
+        # Compute the position loss
+        position_loss, position_loss_mask = self._position_loss(batch, pred_pos)    
+        if self.config.structurewise_loss_reduction:
+            # Compute the per-structure position loss
+            position_loss = scatter(position_loss, batch.batch, dim=0, reduce="sum")  # (b, t)
+            position_loss_mask_natoms = scatter(
+                position_loss_mask.float(), batch.batch, dim=0, reduce="sum"
+            )  # (b, t)
+            position_loss = self._safe_divide(position_loss, position_loss_mask_natoms)  # (b, t)
+            position_loss_mask = position_loss_mask_natoms > 0.0  # (b, t)
+
+        position_loss = self._reduce_loss(
+            position_loss, position_loss_mask, reduction=self.config.force_loss_reduction
+        )
+        self.log("position_loss", position_loss)
+
+        # Combine the loss
+        loss = position_loss
+        self.log("loss", loss)
+
+        return loss
+
     def compute_losses(
         self, batch: BaseData, energy: torch.Tensor, forces: torch.Tensor
     ):
@@ -665,7 +761,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         force_loss = self._reduce_loss(
             force_loss, force_loss_mask, reduction=self.config.force_loss_reduction
         )
-        self.log("force_loss", force_loss)
+        self.log("position_loss", force_loss)
 
         # Combine the losses
         loss = energy_loss + force_loss
@@ -676,20 +772,30 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
     @override
     def training_step(self, batch: BaseData, batch_idx: int):
         with self.log_context(prefix="train/"):
-            energy, forces = self(batch)
+            pred_pos = self(batch)
 
-            loss = self.compute_losses(batch, energy=energy, forces=forces)
-            self.log_dict(self.train_metrics(batch, energy=energy, forces=forces))
+            loss = self.compute_position_loss(batch, pred_pos)
+            self.log_dict(self.train_metrics(batch, pred_pos))
+
+            # energy, forces = self(batch)
+
+            # loss = self.compute_losses(batch, energy=energy, forces=forces)
+            # self.log_dict(self.train_metrics(batch, energy=energy, forces=forces))
 
             return loss
 
     @override
     def validation_step(self, batch: BaseData, batch_idx: int):
         with self.log_context(prefix="val/"):
-            energy, forces = self(batch)
+            pred_pos = self(batch)
 
-            loss = self.compute_losses(batch, energy=energy, forces=forces)
-            metrics = self.val_metrics(batch, energy=energy, forces=forces)
+            loss = self.compute_position_loss(batch, pred_pos)
+            metrics = self.val_metrics(batch, pred_pos)
+
+            # energy, forces = self(batch)
+
+            # loss = self.compute_losses(batch, energy=energy, forces=forces)
+            # metrics = self.val_metrics(batch, energy=energy, forces=forces)
             self.log_dict(metrics)
 
     def configure_lr_scheduler(
@@ -1001,6 +1107,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         data.y_scale = config.energy_loss_scale
         data.force_scale = config.force_loss_scale
+        data.pos_scale = config.pos_loss_scale
 
         return data
 
@@ -1032,6 +1139,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         data.y_scale = config.energy_loss_scale
         data.force_scale = config.force_loss_scale
+        data.pos_scale = config.pos_loss_scale
 
         return data
 
@@ -1071,6 +1179,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         data.y_scale = config.energy_loss_scale
         data.force_scale = config.force_loss_scale
+        data.pos_scale = config.pos_loss_scale
 
         return data
 
@@ -1105,5 +1214,6 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
         data.y_scale = config.energy_loss_scale
         data.force_scale = config.force_loss_scale
+        data.pos_scale = config.pos_loss_scale
 
         return data

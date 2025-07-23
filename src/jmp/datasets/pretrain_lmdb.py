@@ -243,6 +243,11 @@ class PretrainLmdbDataset(Dataset[BaseData]):
             data_object.force = data_object.forces
             del data_object.forces
 
+        position_noise_scale = 0.04
+        noise = torch.randn_like(data_object.pos) * position_noise_scale
+        data_object.pos_target = noise  # target is the noise
+        data_object.pos = data_object.pos + noise  # input is the noised positions
+
 
         if self.transform is not None:
             data_object = self.transform(data_object)

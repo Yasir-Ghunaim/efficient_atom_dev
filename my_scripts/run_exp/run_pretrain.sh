@@ -13,17 +13,17 @@
 #####
 hostname
 nvidia-smi
-conda activate efficient_atom
+conda activate efficient_atom_den
 ##### 
 
 cd ..
 CUDA_VISIBLE_DEVICES=0 python pretrain.py \
-    --lr 1.0e-5 \
+    --lr 1.0e-4 \
     --batch_size 20 \
     --num_workers 6 \
-    --train_samples_limit 2000000 \
+    --train_samples_limit 1000000 \
     --val_samples_limit 2000 \
-    --task "oc20,oc22,ani1x,transition1x" \
+    --task "ani1x" \
     --epochs 5 \
     --sampling_strategy "random" \
     --enable_wandb \

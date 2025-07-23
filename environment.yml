@@ -1,4 +1,4 @@
-name: efficient_atom
+name: efficient_atom_den
 channels:
   - pyg
   - pytorch

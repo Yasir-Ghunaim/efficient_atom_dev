@@ -19,6 +19,7 @@ from typing_extensions import NotRequired, override
 
 from .transforms.normalize import denormalize_batch
 from .transforms.units import VALID_UNITS, Unit, _determine_factor
+from einops import pack, rearrange, reduce
 
 
 class MetricConfig(TypedDict):
@@ -47,8 +48,9 @@ class FMTaskMetrics(nn.Module):
         self.num_tasks = num_tasks
         self.free_atoms_only = free_atoms_only
 
-        self.energy_mae = torchmetrics.MeanAbsoluteError()
-        self.forces_mae = torchmetrics.MeanAbsoluteError()
+        # self.energy_mae = torchmetrics.MeanAbsoluteError()
+        # self.forces_mae = torchmetrics.MeanAbsoluteError()
+        self.pos_mae = torchmetrics.MeanAbsoluteError()
 
         if units := self.config.get("additional_units", []):
             for unit in units:
@@ -56,89 +58,125 @@ class FMTaskMetrics(nn.Module):
                     raise ValueError(
                         f"Invalid unit: {unit}. Valid units: {VALID_UNITS}"
                     )
-            self.energy_mae_additional = TypedModuleList(
-                [torchmetrics.MeanAbsoluteError() for _ in units]
-            )
-            self.forces_mae_additional = TypedModuleList(
+            # self.energy_mae_additional = TypedModuleList(
+            #     [torchmetrics.MeanAbsoluteError() for _ in units]
+            # )
+            # self.forces_mae_additional = TypedModuleList(
+            #     [torchmetrics.MeanAbsoluteError() for _ in units]
+            # )
+            self.pos_mae_additional = TypedModuleList(
                 [torchmetrics.MeanAbsoluteError() for _ in units]
             )
 
     @override
-    def forward(self, batch: Batch, energy: torch.Tensor, forces: torch.Tensor):
+    def forward(self, batch: Batch, pred_pos: torch.Tensor):
         metrics: dict[str, torchmetrics.Metric] = {}
 
-        self._energy_mae(batch, energy, self.energy_mae)
-        self._forces_mae(batch, forces, self.forces_mae)
+        # self._energy_mae(batch, energy, self.energy_mae)
+        # self._forces_mae(batch, forces, self.forces_mae)
+        self._pos_mae(batch, pred_pos, self.pos_mae)
 
-        metrics["energy_mae"] = self.energy_mae
-        metrics["forces_mae"] = self.forces_mae
+        # metrics["energy_mae"] = self.energy_mae
+        # metrics["forces_mae"] = self.forces_mae
+        metrics["pos_mae"] = self.pos_mae
 
-        if additional := self.config.get("additional_units", []):
-            for unit, energy_metric, forces_metric in zip(
-                additional, self.energy_mae_additional, self.forces_mae_additional
-            ):
-                assert (
-                    unit in VALID_UNITS
-                ), f"Invalid unit: {unit}. Valid units: {VALID_UNITS}"
-                sanitized_unit = unit.replace("/", "_")
-                self._energy_mae(
-                    batch,
-                    energy,
-                    energy_metric,
-                    transform=partial(_transform, from_="eV", to=unit),
-                )
-                self._forces_mae(
-                    batch,
-                    forces,
-                    forces_metric,
-                    transform=partial(_transform, from_="eV", to=unit),
-                )
+        # if additional := self.config.get("additional_units", []):
+        #     # for unit, energy_metric, forces_metric in zip(
+        #     #     additional, self.energy_mae_additional, self.forces_mae_additional
+        #     # ):
+        #     for unit, pos_metric in zip(
+        #         additional, self.pos_mae_additional
+        #     ):
+        #         assert (
+        #             unit in VALID_UNITS
+        #         ), f"Invalid unit: {unit}. Valid units: {VALID_UNITS}"
+        #         sanitized_unit = unit.replace("/", "_")
+        #         self._energy_mae(
+        #             batch,
+        #             energy,
+        #             energy_metric,
+        #             transform=partial(_transform, from_="eV", to=unit),
+        #         )
+        #         self._forces_mae(
+        #             batch,
+        #             forces,
+        #             forces_metric,
+        #             transform=partial(_transform, from_="eV", to=unit),
+        #         )
 
-                metrics[f"energy_mae_{sanitized_unit}"] = energy_metric
-                metrics[f"forces_mae_{sanitized_unit}"] = forces_metric
+        #         metrics[f"energy_mae_{sanitized_unit}"] = energy_metric
+        #         metrics[f"forces_mae_{sanitized_unit}"] = forces_metric
 
         return {f"{self.name}/{name}": metric for name, metric in metrics.items()}
 
-    def _forces_mae(
+    def _pos_mae(
         self,
         batch: Batch,
-        forces: torch.Tensor,
-        forces_mae: torchmetrics.MeanAbsoluteError,
+        pred_pos: torch.Tensor,
+        pos_mae: torchmetrics.MeanAbsoluteError,
         *,
         transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
     ):
         task_idx = self.config["idx"]
-
-        forces_mask = batch.task_mask[:, task_idx]  # (b,)
-        forces_mask = forces_mask[batch.batch]  # (n,)
+        mask = batch.task_mask[:, task_idx]  # (b,)
+        mask = mask[batch.batch]  # (n,)
         if self.free_atoms_only:
-            forces_mask = forces_mask & ~batch.fixed
-        forces_target = batch.force[..., task_idx][forces_mask]
-        forces_pred = forces[..., task_idx][forces_mask]
+            mask = mask & ~batch.fixed
+
+        target = batch.pos_target
+        if target.ndim == 2:
+            # (n_atoms, 3) → (n_atoms, 3, 1) to match multitask shape
+            target = target.unsqueeze(-1)
+
+        target = target[..., task_idx][mask]
+        pred = pred_pos[..., task_idx][mask]
         if transform is not None:
-            forces_target = transform(forces_target)
-            forces_pred = transform(forces_pred)
+            target = transform(target)
+            pred = transform(pred)
 
-        forces_mae(forces_pred, forces_target)
+        pos_mae(pred, target)
 
-    def _energy_mae(
-        self,
-        batch: Batch,
-        energy: torch.Tensor,
-        energy_mae: torchmetrics.MeanAbsoluteError,
-        *,
-        transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
-    ):
-        task_idx = self.config["idx"]
 
-        energy_mask = batch.task_mask[:, task_idx]  # (b,)
-        energy_target = batch.y[..., task_idx][energy_mask]  # (b,)
-        energy_pred = energy[..., task_idx][energy_mask]  # (b,)
-        if transform is not None:
-            energy_target = transform(energy_target)
-            energy_pred = transform(energy_pred)
+    # def _forces_mae(
+    #     self,
+    #     batch: Batch,
+    #     forces: torch.Tensor,
+    #     forces_mae: torchmetrics.MeanAbsoluteError,
+    #     *,
+    #     transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    # ):
+    #     task_idx = self.config["idx"]
 
-        energy_mae(energy_pred, energy_target)
+    #     forces_mask = batch.task_mask[:, task_idx]  # (b,)
+    #     forces_mask = forces_mask[batch.batch]  # (n,)
+    #     if self.free_atoms_only:
+    #         forces_mask = forces_mask & ~batch.fixed
+    #     forces_target = batch.force[..., task_idx][forces_mask]
+    #     forces_pred = forces[..., task_idx][forces_mask]
+    #     if transform is not None:
+    #         forces_target = transform(forces_target)
+    #         forces_pred = transform(forces_pred)
+
+    #     forces_mae(forces_pred, forces_target)
+
+    # def _energy_mae(
+    #     self,
+    #     batch: Batch,
+    #     energy: torch.Tensor,
+    #     energy_mae: torchmetrics.MeanAbsoluteError,
+    #     *,
+    #     transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
+    # ):
+    #     task_idx = self.config["idx"]
+
+    #     energy_mask = batch.task_mask[:, task_idx]  # (b,)
+    #     energy_target = batch.y[..., task_idx][energy_mask]  # (b,)
+    #     energy_pred = energy[..., task_idx][energy_mask]  # (b,)
+    #     if transform is not None:
+    #         energy_target = transform(energy_target)
+    #         energy_pred = transform(energy_pred)
+
+    #     energy_mae(energy_pred, energy_target)
 
 
 class FMMetrics(nn.Module):
@@ -163,12 +201,24 @@ class FMMetrics(nn.Module):
         )
 
     @override
-    def forward(self, batch: Batch, energy: torch.Tensor, forces: torch.Tensor):
-        if self.denormalize:
-            batch, d = denormalize_batch(batch, {"y": energy, "force": forces})
-            energy, forces = d["y"], d["force"]
+    def forward(self, batch: Batch, pred_pos: torch.Tensor):
+        # if self.denormalize:
+        #     batch, d = denormalize_batch(batch, {"y": energy, "force": forces})
+        #     energy, forces = d["y"], d["force"]
+        position = pred_pos
 
         metrics: dict[str, torchmetrics.Metric] = {}
         for task_metrics in self.task_metrics:
-            metrics.update(task_metrics(batch, energy, forces))
+            metrics.update(task_metrics(batch, position))
         return metrics
+
+    # @override
+    # def forward(self, batch: Batch, energy: torch.Tensor, forces: torch.Tensor):
+    #     if self.denormalize:
+    #         batch, d = denormalize_batch(batch, {"y": energy, "force": forces})
+    #         energy, forces = d["y"], d["force"]
+
+    #     metrics: dict[str, torchmetrics.Metric] = {}
+    #     for task_metrics in self.task_metrics:
+    #         metrics.update(task_metrics(batch, energy, forces))
+    #     return metrics

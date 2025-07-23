@@ -13,7 +13,7 @@
 #####
 hostname
 nvidia-smi
-conda activate efficient_atom
+conda activate efficient_atom_den
 ##### 
 
 cd ..
