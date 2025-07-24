@@ -53,8 +53,12 @@ def jmp_l_spice_config_(config: SPICEConfig, dataset: DC.SPICEDataset, base_path
 
     # Gradient forces
     config.model_type = "forces"
-    config.gradient_forces = True
-    config.trainer.inference_mode = False
+    if config.model_name ==  "gemnet":
+        config.gradient_forces = True
+        config.trainer.inference_mode = False
+    elif config.model_name == "equiformer_v2":
+        config.backbone.regress_forces = True
+        config.backbone.direct_forces = True
 
     # Set up normalization
     if (normalization_config := STATS.get(dataset)) is None:
