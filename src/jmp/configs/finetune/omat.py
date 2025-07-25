@@ -43,7 +43,7 @@ def jmp_l_omat_config_(
 
     # Set data config
     if args.large:
-        config.batch_size = 10
+        config.batch_size = 18
     else:
         config.batch_size = 60
 
