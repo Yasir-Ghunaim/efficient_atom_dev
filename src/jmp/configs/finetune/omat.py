@@ -42,7 +42,10 @@ def jmp_l_omat_config_(
     # config.backbone.max_neighbors = config.max_neighbors
 
     # Set data config
-    config.batch_size = 60
+    if args.large:
+        config.batch_size = 10
+    else:
+        config.batch_size = 60
 
     # Set up dataset
     config.train_dataset = DC.omat_config(base_path, "train", args=args)#, max_samples=2_000_000)
