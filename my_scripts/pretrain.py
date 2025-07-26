@@ -7,7 +7,7 @@ from jmp.lightning import Runner, Trainer
 from jmp.utils.fit_scales import fit_scales_new
 from jmp.modules.scaling.util import ensure_fitted
 
-from setup_pretrain import load_global_config, configure_model
+from setup_pretrain import load_global_config, configure_model, load_checkpoint
 
 # Load global config
 global_config = load_global_config()
@@ -19,8 +19,8 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=2.0e-4, help="Learning rate for the optimizer")
     parser.add_argument("--batch_size", type=int, default=4, help="Training batch size")
     parser.add_argument("--num_workers", type=int, default=6, help="Number of workers")
-    parser.add_argument("--train_samples_limit", type=int, default=1000000, help="Number of training samples to use")
-    parser.add_argument("--val_samples_limit", type=int, default=-1, help="Number of validation samples to use")
+    parser.add_argument("--train_samples_limit", type=int, default=None, help="Number of training samples to use")
+    parser.add_argument("--val_samples_limit", type=int, default=None, help="Number of validation samples to use")
     parser.add_argument("--large", action="store_true", help="Load the large pre-trained checkpoint")
     parser.add_argument("--scratch", action="store_true", help="Train from scratch")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
@@ -33,6 +33,7 @@ def parse_args():
                         default="random", help="Sampling strategy to use: 'random', only 'random' is supported for now.")
     parser.add_argument("--temperature_sampling", action="store_true", help="Use temperature sampling equal to 2")
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
+    parser.add_argument("--checkpoint_path", type=str, help="Path of finetune checkpoint to load")
 
     args = parser.parse_args()
     args.root_path = global_config.get("root_path", None)
@@ -62,6 +63,9 @@ def build_job_name(args, config):
 
     if args.large:
         job_name += "_large"
+    
+    if args.checkpoint_path:
+        job_name += f"_{args.checkpoint_path}" 
 
     return job_name
 
@@ -75,15 +79,18 @@ def run_training(
     print("Creating the Model =================")
     model = model_cls(config)
 
-    if args.model_name == "gemnet":
-        print("Fitting GemNet-OC model =================")
-        fit_scales_new(
-            config=config,
-            model=model,
-            backbone=lambda m: m.backbone
-        )
+    if not args.scratch and args.checkpoint_path:
+        load_checkpoint(model, args)
+    else:
+        if args.model_name == "gemnet":
+            print("Fitting GemNet-OC model =================")
+            fit_scales_new(
+                config=config,
+                model=model,
+                backbone=lambda m: m.backbone
+            )
 
-        ensure_fitted(model)
+    ensure_fitted(model)
 
     trainer = Trainer(config)
     # trainer.validate(model)

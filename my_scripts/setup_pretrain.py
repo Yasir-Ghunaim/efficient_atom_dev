@@ -10,21 +10,41 @@ from jmp.tasks.pretrain.module import (
     PretrainDatasetConfig,
     TaskConfig,
 )
+from jmp.utils.finetune_state_dict import filter_state_dict
+
 
 def load_global_config(filename="global_config.yaml"):
     config_path = Path(__file__).resolve().parent.parent / filename
     with open(config_path, "r") as file:
         return yaml.safe_load(file)
 
+
+def load_checkpoint(model, args):
+    # Here, we load our fine-tuned model on the same task
+    if hasattr(args, "checkpoint_path") and args.checkpoint_path:
+        print("Loading custom checkpoint =================")
+        root = Path(args.root_path) / "checkpoints/MSI/"
+        ckpt_path = root / (args.checkpoint_path + ".ckpt")
+        state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
+        embedding_state_dict = filter_state_dict(state_dict, "embedding.")
+        backbone_state_dict = filter_state_dict(state_dict, "backbone.")
+
+        model.embedding.load_state_dict(embedding_state_dict)
+        model.backbone.load_state_dict(backbone_state_dict)
+        print("======= Loaded checkpoint for gemnet")
+        
 # Configure tasks based on command-line arguments
 def configure_tasks(args):
     dataset_path = Path(args.root_path) / "datasets"
     OCP_path = Path("/ibex/ai/reference/OPC_OpenCatalystProject/data")
     train_samples_limit = args.train_samples_limit
-    if args.val_samples_limit > 0:
-        val_samples_limit = args.val_samples_limit
+    if args.val_samples_limit is None:
+       val_samples_limit = None
     else:
-        val_samples_limit = 2500
+        if args.val_samples_limit > 0:
+            val_samples_limit = args.val_samples_limit
+        else:
+            val_samples_limit = 2500
 
     dataset_names = args.task.split(",")
 
@@ -51,7 +71,8 @@ def configure_tasks(args):
         assert sum(temperature_limit.values()) == train_samples_limit, "Temperature limit does not match train_samples_limit"
 
     else:
-        train_samples_limit = train_samples_limit // len(dataset_names)
+        if train_samples_limit is not None:
+            train_samples_limit = train_samples_limit // len(dataset_names)
 
 
     is_custom_ratios = args.temperature_sampling or args.ani1x_ood
@@ -245,11 +266,17 @@ def configure_validation_and_scheduler(config, args):
     # config.lr_scheduler.max_epochs = None
     # config.lr_scheduler.max_steps = 800000
 
-    config.trainer.val_check_interval = 0.05  # Run validation every 5% of the epoch
+    train_samples_limit = args.train_samples_limit
+
+    if args.task == "omat":
+        config.trainer.val_check_interval = 0.25
+        train_samples_limit = 3464007
+    else:
+        config.trainer.val_check_interval = 0.05  # Run validation every 5% of the epoch
     config.lr_scheduler.max_epochs = None
 
     num_gpus = torch.cuda.device_count()
     effective_batch_size = args.batch_size * num_gpus
 
-    max_steps = (args.train_samples_limit // effective_batch_size) * args.epochs
+    max_steps = (train_samples_limit // effective_batch_size) * args.epochs
     config.lr_scheduler.max_steps = max_steps
