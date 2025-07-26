@@ -20,7 +20,7 @@ from ...tasks.finetune.base import (
 )
 
 STATS: dict[str, dict[str, NC]] = {
-    "y": NC(mean=-61.17147619717258, std=30.74026854956568),
+    "y": NC(mean=0.0, std=30.74026854956568),
     "force": NC(mean=0.0, std=4.445453643798828),
 }
 
@@ -37,7 +37,7 @@ def jmp_l_omat_config_(
     # )
 
     config.cutoff = 12.0
-    config.max_neighbors = 20
+    config.max_neighbors = 30
     # config.backbone.max_radius = config.cutoff
     # config.backbone.max_neighbors = config.max_neighbors
 
@@ -45,17 +45,17 @@ def jmp_l_omat_config_(
     if args.large:
         config.batch_size = 18
     else:
-        config.batch_size = 60
+        config.batch_size = 18
 
     # Set up dataset
-    config.train_dataset = DC.omat_config(base_path, "train", args=args)#, max_samples=2_000_000)
-    config.val_dataset = DC.omat_config(base_path, "val", args=args)#, max_samples=2_500)
+    config.train_dataset = DC.omat_config(base_path, "train", args=args, max_samples=2_000_000)
+    config.val_dataset = DC.omat_config(base_path, "val", args=args, max_samples=2000)#, max_samples=2_500)
     config.test_dataset = DC.omat_config(base_path, "val", args=args)
 
     # OMAT specific settings
     config.primary_metric = PrimaryMetricConfig(name="force_mae", mode="min")
 
-    config.trainer.val_check_interval = 0.25
+    config.trainer.val_check_interval = 0.05 #0.25
 
     # Gradient forces
     config.model_type = "energy_forces"
@@ -65,7 +65,7 @@ def jmp_l_omat_config_(
     config.backbone.direct_forces = True
 
     config.trainer.inference_mode = False
-    config.trainer.precision = "32-true"
+    config.trainer.precision = "16-mixed"
 
     # Set up normalization
     config.normalization = {

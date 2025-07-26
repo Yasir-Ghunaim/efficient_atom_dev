@@ -22,7 +22,7 @@ class OMATConfig(EnergyForcesConfigBase):
     node_vector_loss_coefficients: dict[str, float] = {"force": 20.0}
 
     cutoff: float = 12.0
-    max_neighbors: int = 20
+    max_neighbors: int = 30
 
 
 class OMATModel(EnergyForcesModelBase[OMATConfig]):
@@ -43,7 +43,7 @@ class OMATModel(EnergyForcesModelBase[OMATConfig]):
             max_neighbors=MaxNeighbors.from_goc_base_proportions(
                 self.config.max_neighbors
             ),
-            pbc=False,
+            pbc=True,
         )
 
     @override
