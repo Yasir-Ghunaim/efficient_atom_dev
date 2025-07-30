@@ -43,9 +43,13 @@ def parse_args():
 
 def build_job_name(args, config):
     """Construct a job name based on the configuration."""
-    job_name = f"PT_{args.task}_lr{args.lr}_train{args.train_samples_limit}_val{args.val_samples_limit}_ep{args.epochs}"
+    job_name = f"Denoise_{args.task}_lr{args.lr}_train{args.train_samples_limit}_val{args.val_samples_limit}_ep{args.epochs}"
     if args.scratch:
         job_name += f"_scratch"
+
+    
+    if args.model_name == "equiformer_v2":
+        job_name += f"_eqv2"
 
     # Remove the underscore and capitalize each starting letter if an underscore exists:
     if "_" in args.sampling_strategy:

@@ -124,9 +124,9 @@ class FMTaskMetrics(nn.Module):
             mask = mask & ~batch.fixed
 
         target = batch.pos_target
-        if target.ndim == 2:
-            # (n_atoms, 3) → (n_atoms, 3, 1) to match multitask shape
-            target = target.unsqueeze(-1)
+        # if target.ndim == 2:
+        #     # (n_atoms, 3) → (n_atoms, 3, 1) to match multitask shape
+        #     target = target.unsqueeze(-1)
 
         target = target[..., task_idx][mask]
         pred = pred_pos[..., task_idx][mask]

@@ -51,7 +51,7 @@ def _update_task_idx_transform(
     task_idx: int,
     num_tasks: int,
     taskify_keys_graph: list[str] = ["y"],
-    taskify_keys_node: list[str] = ["force"],
+    taskify_keys_node: list[str] = ["force", "pos_target"],
     use_onehot: bool = True,
 ):
     data.task_idx = torch.tensor(task_idx, dtype=torch.long)
@@ -148,9 +148,9 @@ class MTDatasetConfig(TypedConfig):
     balanced: bool | None = None
     strict: bool = True
 
-    taskify_keys_graph: list[str] = ["y", "y_scale", "force_scale"]
+    taskify_keys_graph: list[str] = ["y", "y_scale", "force_scale", "pos_scale"]
     """Converts the graph-level attributes to a one-hot vector * attr."""
-    taskify_keys_node: list[str] = ["force"]
+    taskify_keys_node: list[str] = ["force", "pos_target"]
     """Converts the node-level attributes to a one-hot vector * attr."""
     taskify_use_onehot: bool = True
     """If True, the one-hot vector is used. If False, a vector of ones is used. (Should be True for most cases.)"""

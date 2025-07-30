@@ -77,7 +77,7 @@ def configure_tasks(args):
             ),
             energy_loss_scale=1.0,
             force_loss_scale=10.0,
-            pos_loss_scale=10.0,
+            pos_loss_scale=20.0,
             normalization={
                 "y": NormalizationConfig(mean=0.0, std=24.901469505465872),
                 "force": NormalizationConfig(mean=0.0, std=0.5111534595489502),
@@ -103,7 +103,7 @@ def configure_tasks(args):
             ),
             energy_loss_scale=1.0,
             force_loss_scale=10.0,
-            pos_loss_scale=10.0,
+            pos_loss_scale=20.0,
             normalization={
                 "y": NormalizationConfig(mean=0.0, std=25.229595396538468),
                 "force": NormalizationConfig(mean=0.0, std=0.25678861141204834),
@@ -129,7 +129,7 @@ def configure_tasks(args):
             ),
             energy_loss_scale=1.0,
             force_loss_scale=10.0,
-            pos_loss_scale=10.0,
+            pos_loss_scale=20.0,
             normalization={
                 "y": NormalizationConfig(mean=0.0, std=2.8700712783472118),
                 "force": NormalizationConfig(mean=0.0, std=2.131422996520996),
@@ -155,7 +155,7 @@ def configure_tasks(args):
             ),
             energy_loss_scale=1.0,
             force_loss_scale=10.0,
-            pos_loss_scale=10.0,
+            pos_loss_scale=20.0,
             normalization={
                 "y": NormalizationConfig(mean=0.0, std=1.787466168382901),
                 "force": NormalizationConfig(mean=0.0, std=0.3591422140598297),
@@ -198,7 +198,7 @@ def configure_validation_and_scheduler(config, args):
     # config.lr_scheduler.max_epochs = None
     # config.lr_scheduler.max_steps = 800000
 
-    config.trainer.val_check_interval = 0.05  # Run validation every 5% of the epoch
+    config.trainer.val_check_interval = 0.25  # Run validation every 5% of the epoch
     config.lr_scheduler.max_epochs = None
 
     num_gpus = torch.cuda.device_count()

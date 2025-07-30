@@ -380,10 +380,13 @@ class EquiformerV2MultiOutput(nn.Module):
         self.tasks = config.tasks  # List of tasks
 
         # Create multiple heads, one for each task
-        self.energy_heads = nn.ModuleList(
-            [EquiformerV2EnergyHead(backbone, reduce="mean") for _ in self.tasks]
-        )
-        self.force_heads = nn.ModuleList(
+        # self.energy_heads = nn.ModuleList(
+        #     [EquiformerV2EnergyHead(backbone, reduce="mean") for _ in self.tasks]
+        # )
+        # self.force_heads = nn.ModuleList(
+        #     [EquiformerV2ForceHead(backbone) for _ in self.tasks]
+        # )
+        self.pos_heads = nn.ModuleList(
             [EquiformerV2ForceHead(backbone) for _ in self.tasks]
         )
 
@@ -393,24 +396,31 @@ class EquiformerV2MultiOutput(nn.Module):
             batch: Input batch containing atomic and molecular data.
             backbone_out: Output from the EquiformerV2 backbone.
         Returns:
-            energy_list: List of energy predictions for each task.
-            forces_list: List of force predictions for each task.
+            pos_tensor: Tensor of predicted positions for each task.
         """
-        energy_list = []
-        forces_list = []
+        # energy_list = []
+        # forces_list = []
+        pos_list = []
 
-        for energy_head, force_head, task in zip(
-            self.energy_heads, self.force_heads, self.tasks
-        ):
-            energy = energy_head(batch, backbone_out)["energy"]
-            forces = force_head(batch, backbone_out)["forces"]
-            energy_list.append(energy)
-            forces_list.append(forces)
+        # for energy_head, force_head, task in zip(
+        #     self.energy_heads, self.force_heads, self.tasks
+        # ):
+        #     energy = energy_head(batch, backbone_out)["energy"]
+        #     forces = force_head(batch, backbone_out)["forces"]
+        #     energy_list.append(energy)
+        #     forces_list.append(forces)
+        
+        for pos_head, task in zip(self.pos_heads, self.tasks):
+            pos_out = pos_head(batch, backbone_out)["forces"]  # reuse same logic
+            pos_list.append(pos_out)
 
-        energy_tensor = torch.stack(energy_list, dim=-1)
-        forces_tensor = torch.stack(forces_list, dim=-1)
+        # energy_tensor = torch.stack(energy_list, dim=-1)
+        # forces_tensor = torch.stack(forces_list, dim=-1)
 
-        return energy_tensor, forces_tensor
+        # return energy_tensor, forces_tensor
+
+        pos_tensor = torch.stack(pos_list, dim=-1)  # (n_atoms, 3, n_tasks)
+        return pos_tensor
 
 TConfig = TypeVar(
     "TConfig", bound=PretrainConfig, default=PretrainConfig, infer_variance=True
@@ -569,11 +579,12 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         self, batch: BaseData, pred_pos: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.debug:
-            assert pred_pos.shape[:2] == batch.pos_target.shape, \
+            assert pred_pos.shape == batch.pos_target.shape, \
                 f"pred: {pred_pos.shape}, target: {batch.pos_target.shape}"
+                
 
         pred = rearrange(pred_pos, "n p t -> n t p")  # (n_atoms, num_tasks, 3)
-        target = rearrange(batch.pos_target, "n p -> n 1 p").expand_as(pred)  # (n_atoms, num_tasks, 3)
+        target = rearrange(batch.pos_target, "n p t -> n t p").expand_as(pred)  # (n_atoms, num_tasks, 3)
 
         mask = batch.task_mask[batch.batch]  # (n_atoms, num_tasks)
         if self.config.train_on_free_atoms_only:
@@ -996,7 +1007,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
                 setattr(data, key, self._to_int(data[key]))
 
 
-        for attr in ("y", "force"):
+        for attr in ("y", "force", "pos"):
             key = f"{attr}_scale"
             if not hasattr(data, key):
                 raise ValueError(f"{key=} not found in data")
