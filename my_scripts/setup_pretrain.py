@@ -24,7 +24,10 @@ def load_checkpoint(model, args):
     if hasattr(args, "checkpoint_path") and args.checkpoint_path:
         print("Loading custom checkpoint =================")
         root = Path(args.root_path) / "checkpoints/MSI/"
-        ckpt_path = root / (args.checkpoint_path + ".ckpt")
+        if args.checkpoint_path == "jmp-s":
+            ckpt_path = root / (args.checkpoint_path + ".pt")
+        else:
+            ckpt_path = root / (args.checkpoint_path + ".ckpt")
         state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
         embedding_state_dict = filter_state_dict(state_dict, "embedding.")
         backbone_state_dict = filter_state_dict(state_dict, "backbone.")
