@@ -42,6 +42,7 @@ def parse_args():
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
     parser.add_argument("--compute_sample_difficulty", action="store_true",
                         help="If set, compute per-sample difficulty using model loss")
+    parser.add_argument("--checkpoint_tag", type=str, default="OC20", help="checkpoint tag")
 
     args = parser.parse_args()
     args.root_path = global_config.get("root_path", None)
@@ -76,7 +77,12 @@ def get_dataset_and_model(config, args):
 
     elif config.model_name == "equiformer_v2":
         checkpoint_path = Path(args.root_path) / "checkpoints/EquiformerV2"
-        full_state_dict = torch.load(checkpoint_path / "eq2_31M_ec4_allmd.pt")['state_dict']
+        full_path = checkpoint_path / "eq2_31M_ec4_allmd.pt"
+        if args.checkpoint_tag == "ODAC":
+            full_path = checkpoint_path / "eqv2_31M_odac_new.pt"
+
+        print("Loading checkpoint:", full_path)
+        full_state_dict = torch.load(full_path)['state_dict']
 
     # Fix the keys by replacing "module.module" with "backbone"
     full_state_dict = {
@@ -147,6 +153,8 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
 
     file_suffix = ""
     file_suffix = args.model_name
+    if args.checkpoint_tag:
+        file_suffix += f"_{args.checkpoint_tag}"
 
     save_folder = Path(f"dataset_features_{file_suffix}")
     save_folder.mkdir(parents=True, exist_ok=True)
@@ -304,6 +312,9 @@ def main():
 
     print("The arguments are:", args)
     print(config)
+
+    if args.checkpoint_tag == "ODAC":
+        config.backbone.max_num_elements = 100
 
     dataset, model = get_dataset_and_model(config, args)
     ensure_fitted(model)

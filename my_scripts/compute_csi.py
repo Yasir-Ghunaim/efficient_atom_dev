@@ -127,14 +127,15 @@ def main():
     parser.add_argument("--num-workers", type=int, default=3, help="Number of processes to use")
     parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
     parser.add_argument("--agg_operation", type=str, default="flat", help="Aggregation operation")
+    parser.add_argument("--checkpoint_tag", type=str, default="OC20", help="checkpoint tag")
     args = parser.parse_args()
 
     # Load upstream dataset features
-    upstream_features_path = f"dataset_features_{args.model_name}/{args.path[0]}"
+    upstream_features_path = f"dataset_features_{args.model_name}_{args.checkpoint_tag}/{args.path[0]}"
     upstream_mu, upstream_sigma = compute_statistics_of_features(upstream_features_path, args.agg_operation)
 
     # Load downstream dataset features
-    downstream_features_path = f"dataset_features_{args.model_name}/{args.path[1]}"
+    downstream_features_path = f"dataset_features_{args.model_name}_{args.checkpoint_tag}/{args.path[1]}"
     downstream_mu, downstream_sigma = compute_statistics_of_features(downstream_features_path, args.agg_operation)
 
     # Extract metadata
@@ -153,7 +154,7 @@ def main():
     print("=============================================================")
 
     # Save the CSI score
-    save_filename = f"csi_scores_{args.agg_operation}_{args.model_name}.csv"
+    save_filename = f"csi_scores_{args.agg_operation}_{args.model_name}_{args.checkpoint_tag}.csv"
     file_exists = os.path.isfile(save_filename)
     with open(save_filename, "a", newline='') as f:
         writer = csv.writer(f)

@@ -46,6 +46,10 @@ def get_configs(dataset_name: str, target: str, args, extract_features = False):
         print("Loading checkpoint path:", ckpt_path)
     elif args.model_name == "equiformer_v2":
         ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eq2_31M_ec4_allmd.pt"
+        if extract_features and args.checkpoint_tag == "ODAC":
+            ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eqv2_31M_odac_new.pt"
+        print("Setting checkpoint path:", ckpt_path)
+
 
     dataset_name = dataset_name.lower()
     base_path = Path(args.root_path) / f"datasets/{dataset_name}/"
@@ -128,6 +132,7 @@ def load_checkpoint(model, config, args):
             backbone = filter_state_dict(state_dict, "backbone.")
             model.load_backbone_state_dict(backbone=backbone, embedding=embedding, strict=True)
         elif config.model_name == "equiformer_v2":
+            print("Loading checkpoint:", config.meta.get("ckpt_path"))
             eqv2_state_dict = torch.load(config.meta.get("ckpt_path"))['state_dict']
 
             # Fix the keys by replacing "module.module" with "backbone"

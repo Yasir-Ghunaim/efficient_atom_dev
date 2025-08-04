@@ -46,6 +46,8 @@ parser.add_argument("--batch_size", type=int, default=1, help="Training batch si
 # parser.add_argument("--sampling_strategy", type=str, choices=["random"],
 #                         default="random", help="Sampling strategy to use: 'random'")
 parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
+parser.add_argument("--checkpoint_tag", type=str, default="OC20", help="checkpoint tag")
+
 
 args = parser.parse_args()
 args.root_path = global_config.get("root_path", None)
@@ -81,6 +83,8 @@ def extract_features(model, args, use_mean_aggregation=False, aggregate_by_atoms
 
     file_suffix = ""
     file_suffix = args.model_name
+    if args.checkpoint_tag:
+        file_suffix += f"_{args.checkpoint_tag}"
 
     save_folder = Path(f"dataset_features_{file_suffix}")
     save_folder.mkdir(parents=True, exist_ok=True)
@@ -139,6 +143,8 @@ config.name = "extract"
 
 config.backbone.regress_forces = True
 config.backbone.direct_forces = True
+if args.checkpoint_tag == "ODAC":
+    config.backbone.max_num_elements = 100
 
 model = model_cls(config)
 
