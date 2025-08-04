@@ -863,6 +863,7 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
         
         # self.register_shared_parameters(self.backbone.shared_parameters)
 
+        # Defined in self._construct_backbone()
         # elif self.config.model_name == "equiformer_v2":
             # self.backbone = EquiformerV2Backbone()
 

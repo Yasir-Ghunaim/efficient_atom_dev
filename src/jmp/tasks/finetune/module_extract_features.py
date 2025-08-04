@@ -27,6 +27,9 @@ class FinetuneModelBaseFeatureExtraction(FinetuneModelBase[TConfig]):
         if self.config.model_name == "gemnet":
             backbone = GemNetOCWithFeatureExtraction(self.config.backbone, **dict(self.config.backbone))
         elif self.config.model_name == "equiformer_v2":
+            # Use default hyperparameters for feature extraction
+            self.config.backbone.max_radius = 12.0
+            self.config.backbone.max_neighbors = 20
             backbone = EquiformerV2Backbone(**dict(self.config.backbone))
         return backbone
     
