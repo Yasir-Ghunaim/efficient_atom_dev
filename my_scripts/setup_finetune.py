@@ -46,8 +46,11 @@ def get_configs(dataset_name: str, target: str, args, extract_features = False):
         print("Loading checkpoint path:", ckpt_path)
     elif args.model_name == "equiformer_v2":
         ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eq2_31M_ec4_allmd.pt"
-        if extract_features and args.checkpoint_tag == "ODAC":
-            ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eqv2_31M_odac_new.pt"
+        if extract_features:
+            if args.checkpoint_tag == "ODAC":
+                ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eqv2_31M_odac_new.pt"
+            elif args.checkpoint_tag == "MP":
+                ckpt_path = Path(args.root_path) / "checkpoints/EquiformerV2/eqV2_31M_mp.pt"
         print("Setting checkpoint path:", ckpt_path)
 
 
@@ -140,6 +143,12 @@ def load_checkpoint(model, config, args):
                 key.replace("module.module", "backbone"): value
                 for key, value in eqv2_state_dict.items()
             }
+
+            if args.checkpoint_tag == "MP":
+                eqv2_state_dict = {
+                    key.replace("module.", ""): value
+                    for key, value in eqv2_state_dict.items()
+                }
 
             # Remove keys starting with "backbone.energy_block" and "backbone.force_block"
             state_dict = {

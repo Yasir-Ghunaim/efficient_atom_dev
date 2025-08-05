@@ -145,6 +145,8 @@ config.backbone.regress_forces = True
 config.backbone.direct_forces = True
 if args.checkpoint_tag == "ODAC":
     config.backbone.max_num_elements = 100
+elif args.checkpoint_tag == "MP":
+    config.backbone.max_num_elements = 96
 
 model = model_cls(config)
 

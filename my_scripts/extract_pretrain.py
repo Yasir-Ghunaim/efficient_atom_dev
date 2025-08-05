@@ -80,6 +80,8 @@ def get_dataset_and_model(config, args):
         full_path = checkpoint_path / "eq2_31M_ec4_allmd.pt"
         if args.checkpoint_tag == "ODAC":
             full_path = checkpoint_path / "eqv2_31M_odac_new.pt"
+        elif args.checkpoint_tag == "MP":
+            full_path = checkpoint_path / "eqV2_31M_mp.pt"
 
         print("Loading checkpoint:", full_path)
         full_state_dict = torch.load(full_path)['state_dict']
@@ -89,6 +91,13 @@ def get_dataset_and_model(config, args):
         key.replace("module.module", "backbone"): value
         for key, value in full_state_dict.items()
     }
+
+    if args.checkpoint_tag == "MP":
+        full_state_dict = {
+            key.replace("module.", ""): value
+            for key, value in full_state_dict.items()
+        }
+    
 
     if args.compute_sample_difficulty:
         # Replace energy_block keys
@@ -315,6 +324,8 @@ def main():
 
     if args.checkpoint_tag == "ODAC":
         config.backbone.max_num_elements = 100
+    elif args.checkpoint_tag == "MP":
+        config.backbone.max_num_elements = 96
 
     dataset, model = get_dataset_and_model(config, args)
     ensure_fitted(model)
