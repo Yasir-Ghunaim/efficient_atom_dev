@@ -40,6 +40,11 @@ from pydantic import root_validator, ValidationError
 
 from ...datasets.pretrain_lmdb import PretrainDatasetConfig as PretrainDatasetConfigBase
 from ...datasets.pretrain_lmdb import PretrainLmdbDataset
+from ...datasets.pretrain_aselmdb import PretrainAseDbDataset
+
+from jmp.fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
+from jmp.fairchem.core.datasets.atomic_data import AtomicData
+
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.gemnet.config import BackboneConfig
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone, EquiformerV2EnergyHead, EquiformerV2ForceHead
@@ -747,7 +752,10 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
 
     def _task_dataset(self, task: TaskConfig, training: bool):
         config = task.val_dataset if not training else task.train_dataset
-        dataset = PretrainLmdbDataset(config)
+        if task.name == "omat":
+            dataset = PretrainAseDbDataset(config)
+        else:
+            dataset = PretrainLmdbDataset(config)
         dataset = wrap_common_dataset(dataset, config)
 
         # Apply data transform to the dataset
@@ -1021,6 +1029,32 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         except BaseException:
             data.y = torch.tensor(float(data.y_relaxed)).view(-1)
         data.name = "oc22"
+
+        data = self._generate_graphs(
+            data,
+            cutoffs=Cutoffs.from_constant(12.0),
+            max_neighbors=MaxNeighbors.from_goc_base_proportions(30),
+            pbc=True,
+            training=training,
+        )
+
+        data.y_scale = config.energy_loss_scale
+        data.force_scale = config.force_loss_scale
+
+        return data
+
+    def omat_transform(self, data: BaseData, *, training: bool):
+        data = self._initial_data_transform(data)
+
+        assert (
+            config := self._task_config("omat")
+        ) is not None, "OMAT task is not configured"
+
+        # convert back these keys into required format for collation
+        data.natoms = int(data.natoms.item() if torch.is_tensor(data) else data.natoms)
+
+        data.atomic_numbers = data.atomic_numbers.long()
+        data.tags = data.tags.long()
 
         data = self._generate_graphs(
             data,

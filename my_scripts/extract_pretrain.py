@@ -8,6 +8,9 @@ import torch
 from torch_scatter import scatter
 from torch.utils.data import DataLoader
 from torch_geometric.data.batch import Batch
+from jmp.fairchem.core.datasets.atomic_data import atomicdata_list_to_batch
+from jmp.fairchem.core.datasets.atomic_data import AtomicData
+
 from jmp.modules.scaling.util import ensure_fitted
 from jmp.modules.scaling.compat import load_scales_compat
 from jmp.tasks.pretrain import PretrainConfig, PretrainModel, PretrainModelWithFeatureExtraction
@@ -33,7 +36,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument("--epochs", type=int, default=1, help="Number of training epochs")
     parser.add_argument("--root_path", type=str, help="Root path containing datasets and checkpoints")
-    parser.add_argument("--task", type=str, choices=["oc20", "oc22", "ani1x", "transition1x"],
+    parser.add_argument("--task", type=str, choices=["oc20", "oc22", "ani1x", "transition1x", "omat"],
                         required=True, help="Name of the pretraining task. Choose from: oc20, oc22, ani1x, transition1x.")
     parser.add_argument("--sampling_strategy", type=str, choices=["random", "balanced", "balancedNoRep", "stratified", "uniform"],
                         default="random", help="Sampling strategy to use: 'random', 'balanced', 'balancedNoRep', 'stratified', or 'uniform'")
@@ -140,7 +143,10 @@ def get_dataset_and_model(config, args):
 # Feature extraction function
 def extract_features(model, dataset, config, args, use_mean_aggregation=False, aggregate_by_atoms=False):
     def collate_fn(data_list):
-        return Batch.from_data_list(data_list)
+        if isinstance(data_list[0], AtomicData):
+            return atomicdata_list_to_batch(data_list)
+        else:
+            return Batch.from_data_list(data_list)
 
     max_samples = args.train_samples_limit
 
@@ -169,17 +175,24 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
     save_folder.mkdir(parents=True, exist_ok=True)
 
     extracted_data = []
+    valid_sample_count = 0
+    max_samples = args.train_samples_limit
 
-    for sample in tqdm(dataloader): 
-
-        for molecule_name in sample["molecule_name"]:
-            molecule_counts[molecule_name] += 1
+    pbar = tqdm(dataloader, desc="Extracting features")
+    for sample in pbar:
+        if valid_sample_count >= max_samples:
+            break
 
         sample = sample.to(device)
         features_dict = model(sample)
 
-        node_features = features_dict['node'].detach().cpu()  # Node features
+        if features_dict is None:
+            continue  # Skip invalid samples
 
+        for molecule_name in sample["molecule_name"]:
+            molecule_counts[molecule_name] += 1
+
+        node_features = features_dict['node'].detach().cpu()  # Node features
         batch_indices = sample.batch.detach().cpu()  # Maps each node to a graph index
         sids = sample.sid.detach().cpu()  # List of graph SIDs
         fids = sample.fid.detach().cpu()
@@ -193,6 +206,9 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
 
         # Map features to their graph indices
         for graph_idx in range(len(sids)):
+            if valid_sample_count >= max_samples:
+                break
+
             node_indices = (batch_indices == graph_idx).nonzero(as_tuple=True)[0]
             # edge_indices = torch.where(torch.isin(edge_to_node_mapping, node_indices))[0]
 
@@ -218,8 +234,13 @@ def extract_features(model, dataset, config, args, use_mean_aggregation=False, a
                     "fid": fids[graph_idx].item(),
                     "node_features": graph_features.numpy(),  # Node features for this graph
                 })
+            valid_sample_count += 1
+            pbar.set_postfix({"valid_samples": valid_sample_count})
+
 
     
+    print(f"Finished extracting {valid_sample_count} valid samples (limit = {max_samples})")
+
     # Sort molecule counts by count in descending order
     sorted_molecule_counts = sorted(molecule_counts.items(), key=lambda x: x[1], reverse=True)
     print("Length of counts are:", len(molecule_counts))
