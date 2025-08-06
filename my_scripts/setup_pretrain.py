@@ -224,8 +224,8 @@ def configure_tasks(args):
                 is_train=False,
                 args=args,
             ),
-            energy_loss_scale=1.0,
-            force_loss_scale=10.0,
+            energy_loss_scale=20.0,
+            force_loss_scale=20.0,
             normalization={
                 "y": NormalizationConfig(mean=0.0, std=30.74026854956568),
                 "force": NormalizationConfig(mean=0.0, std=4.445453643798828),
