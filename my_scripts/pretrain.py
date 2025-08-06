@@ -44,7 +44,17 @@ def parse_args():
 
 def build_job_name(args, config):
     """Construct a job name based on the configuration."""
-    job_name = f"PT_{args.task}_lr{args.lr}_train{args.train_samples_limit}_val{args.val_samples_limit}_ep{args.epochs}"
+    job_name = f"Reb_PT_{args.task}_lr{args.lr}"
+
+    if args.train_samples_limit:
+        job_name += f"_train{args.train_samples_limit}"
+
+    if args.val_samples_limit:
+        job_name += f"_val{args.val_samples_limit}"
+
+    job_name += f"_ep{args.epochs}"
+
+
     if args.scratch:
         job_name += f"_scratch"
 
@@ -92,7 +102,8 @@ def run_training(
 
     ensure_fitted(model)
 
-    trainer = Trainer(config)
+    from lightning.pytorch.strategies import DDPStrategy
+    trainer = Trainer(config, strategy=DDPStrategy(find_unused_parameters=True))
     # trainer.validate(model)
     trainer.fit(model)
 
