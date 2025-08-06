@@ -212,5 +212,12 @@ def omat_config(
         f"Please check if the root path '{args.root_path}' contains the correct dataset."
     )
 
-    config = FinetuneAseLmdbDatasetConfig(src=lmdb_path, args=args, max_samples=max_samples)
+    lin_ref_path = base_path / "train/linref.npz"
+
+    config = FinetuneAseLmdbDatasetConfig(
+        src=lmdb_path, 
+        args=args, 
+        max_samples=max_samples,
+        lin_ref_path=lin_ref_path
+        )
     return config

@@ -12,6 +12,11 @@
 conda activate efficient_atom
 ##### 
 
-python -m jmp.datasets.scripts.omat_preprocess.omat_linear_ref linref \
+# python -m jmp.datasets.scripts.omat_preprocess.omat_linear_ref linref \
+#   --src /ibex/project/c2261/datasets/omat/train/rattled-300-subsampled \
+#   --out_path /ibex/project/c2261/datasets/omat/train/linref.npz
+
+python -m jmp.datasets.scripts.omat_preprocess.omat_linear_ref compute_mean_std \
   --src /ibex/project/c2261/datasets/omat/train/rattled-300-subsampled \
-  --out_path /ibex/project/c2261/datasets/omat/train/linref.npz
+  --linref_path /ibex/project/c2261/datasets/omat/train/linref.npz \
+  --out_path /ibex/project/c2261/datasets/omat/train/mean_std.pkl

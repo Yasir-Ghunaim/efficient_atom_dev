@@ -341,6 +341,9 @@ class FinetuneAseLmdbDatasetConfig(CommonDatasetConfig):
     args: Namespace = Namespace()
     """Additional arguments"""
 
+    lin_ref_path: Path | None = None
+    """Path to the linear reference energies file."""
+
     max_samples: int | None = None
 
     def __post_init__(self):
@@ -351,7 +354,13 @@ class FinetuneAseLmdbDatasetConfig(CommonDatasetConfig):
             self.metadata_path = self.src / "metadata.npz"
 
     def create_dataset(self):
-        return FinetuneAseLMDBDataset(src=self.src, metadata_path=self.metadata_path, args=self.args, max_samples=self.max_samples)
+        return FinetuneAseLMDBDataset(
+            src=self.src, 
+            metadata_path=self.metadata_path, 
+            args=self.args, 
+            max_samples=self.max_samples, 
+            lin_ref_path=self.lin_ref_path
+        )
 
 
 class FinetunePDBBindDatasetConfig(PDBBindConfig, CommonDatasetConfig):

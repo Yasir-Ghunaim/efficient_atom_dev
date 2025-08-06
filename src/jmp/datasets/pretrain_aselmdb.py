@@ -53,7 +53,11 @@ class PretrainAseDbDataset(Dataset[BaseData]):
 
         raise ValueError(f"Could not find atoms metadata in {metadata_path=}.")
 
-    def __init__(self, config: PretrainDatasetConfig):
+    def __init__(
+            self, 
+            config: PretrainDatasetConfig,
+            use_referenced_energies: bool = True
+        ):
         self.config = config
         self.path = str(config.src)
 
@@ -101,6 +105,18 @@ class PretrainAseDbDataset(Dataset[BaseData]):
             else:
                 self.shuffled_indices = list(range(self.total_len))
 
+        self.lin_ref = None
+        if (lin_ref := self.config.lin_ref) is not None and use_referenced_energies:
+            coeff = np.load(lin_ref, allow_pickle=True)["coeff"]
+            try:
+                self.lin_ref = torch.nn.Parameter(
+                    torch.tensor(coeff), requires_grad=False
+                )
+            except BaseException:
+                self.lin_ref = torch.nn.Parameter(
+                    torch.tensor(coeff[0]), requires_grad=False
+                )
+
     def __len__(self):
         return len(self.shuffled_indices)
 
@@ -123,6 +139,13 @@ class PretrainAseDbDataset(Dataset[BaseData]):
         if getattr(data, 'force', None) is None and hasattr(data, 'forces'):
             data.force = data.forces
             # delattr(data, "forces")
+
+        if self.lin_ref is not None:
+            lin_energy = sum(self.lin_ref[data.atomic_numbers.long()])
+            if hasattr(data, "task_mask"):
+                data.y[data.task_mask] -= lin_energy
+            else:
+                data.y -= lin_energy
 
         if self.molecule_df is not None:
             row = self.molecule_df[(self.molecule_df['sid'] == data.sid) & (self.molecule_df['fid'] == data.fid)]

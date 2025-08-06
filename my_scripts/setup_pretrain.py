@@ -211,7 +211,7 @@ def configure_tasks(args):
             train_dataset=PretrainDatasetConfig(
                 src=dataset_path / "omat/train/rattled-300-subsampled",  # Folder of .aselmdb files
                 metadata_path=dataset_path / "omat/train/rattled-300-subsampled/metadata.npz",
-                lin_ref=None,
+                lin_ref=dataset_path / "omat/train/linref.npz",
                 max_samples=train_samples_limit,#int(train_samples_limit*2),
                 is_train=True,
                 args=args,
@@ -219,7 +219,7 @@ def configure_tasks(args):
             val_dataset=PretrainDatasetConfig(
                 src=dataset_path / "omat/val/rattled-300-subsampled",  # or point to val if you extract it separately
                 metadata_path=dataset_path / "omat/val/rattled-300-subsampled/metadata.npz",
-                lin_ref=None,
+                lin_ref=dataset_path / "omat/train/linref.npz",
                 max_samples=val_samples_limit,
                 is_train=False,
                 args=args,

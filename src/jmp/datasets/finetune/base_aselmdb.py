@@ -37,6 +37,7 @@ class FinetuneAseLMDBDataset(Dataset[T], ContextDecorator):
         args: Namespace = Namespace(),
         is_train: bool = False,
         max_samples: int | None = None,
+        lin_ref_path: Path | None = None
     ):
         super().__init__()
         self.path = Path(src)
@@ -44,6 +45,7 @@ class FinetuneAseLMDBDataset(Dataset[T], ContextDecorator):
         self.args = args
         self.is_train = is_train
         self.max_samples = max_samples
+        self.lin_ref_path = lin_ref_path
 
         self.dataset = AseDBDataset(config=dict(
             src=str(self.path),
@@ -64,6 +66,18 @@ class FinetuneAseLMDBDataset(Dataset[T], ContextDecorator):
         else: 
             self.shuffled_indices = list(range(self.total_len))
 
+        self.lin_ref = None
+        if self.lin_ref_path is not None:
+            coeff = np.load(self.lin_ref_path, allow_pickle=True)["coeff"]
+            try:
+                self.lin_ref = torch.nn.Parameter(
+                    torch.tensor(coeff), requires_grad=False
+                )
+            except BaseException:
+                self.lin_ref = torch.nn.Parameter(
+                    torch.tensor(coeff[0]), requires_grad=False
+                )
+
 
     def __len__(self) -> int:
         return len(self.shuffled_indices)
@@ -81,6 +95,11 @@ class FinetuneAseLMDBDataset(Dataset[T], ContextDecorator):
             data.y = data.energy
         if getattr(data, "force", None) is None and hasattr(data, "forces"):
             data.force = data.forces
+
+
+        if self.lin_ref is not None:
+            lin_energy = sum(self.lin_ref[data.atomic_numbers.long()])
+            data.y -= lin_energy
 
         # if self.molecule_df is not None:
         #     row = self.molecule_df[(self.molecule_df["sid"] == data.sid) & (self.molecule_df["fid"] == data.fid)]

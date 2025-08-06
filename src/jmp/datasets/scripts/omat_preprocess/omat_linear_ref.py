@@ -17,37 +17,54 @@ import torch
 from jmp.datasets.pretrain_lmdb import PretrainDatasetConfig, PretrainLmdbDataset
 from jmp.datasets.pretrain_aselmdb import PretrainAseDbDataset
 from torch_scatter import scatter
+from torch.utils.data import DataLoader
+
 from tqdm import tqdm
 
 
 def _compute_mean_std(args: argparse.Namespace):
-    @cache
-    def dataset():
-        return PretrainLmdbDataset(
-            PretrainDatasetConfig(src=args.src, lin_ref=args.linref_path)
+    dataset = PretrainAseDbDataset(
+        PretrainDatasetConfig(
+            src=args.src,
+            args=argparse.Namespace(seed=0),
+            lin_ref=args.linref_path
         )
+    )
 
-    def extract_data(idx):
-        data = dataset()[idx]
-        y = data.y
-        na = data.natoms
-        f = data.force.numpy().reshape(-1, 3)  # shape: (num_atoms, 3)
-        return (y, na, f)
+    def collate_fn(batch):
+        energies, natoms, forces = [], [], []
+        for data in batch:
+            energies.append(data.y)
+            natoms.append(data.natoms)
+            forces.append(data.force.numpy().reshape(-1, 3))  # shape: (num_atoms, 3)
+        return np.array(energies), np.array(natoms), np.concatenate(forces, axis=0)
 
-    pool = mp.Pool(args.num_workers)
-    indices = range(len(dataset()))
+    
+    dataloader = DataLoader(
+        dataset,
+        batch_size=100,  # adjust based on memory
+        num_workers=args.num_workers,
+        pin_memory=True,
+        collate_fn=collate_fn
+    )
 
-    outputs = list(tqdm(pool.imap(extract_data, indices), total=len(indices)))
+    all_energies = []
+    all_natoms = []
+    all_forces = []
 
-    energies = [y for y, na, f in outputs]
-    num_atoms = [na for y, na, f in outputs]
-    forces = [f for y, na, f in outputs]
+    for energies, natoms, forces in tqdm(dataloader, total=len(dataloader)):
+        all_energies.append(energies)
+        all_natoms.append(natoms)
+        all_forces.append(forces)
+
+    energies = np.concatenate(all_energies)
+    num_atoms = np.concatenate(all_natoms)
+    all_forces = np.concatenate(all_forces)
 
     energy_mean = np.mean(energies)
     energy_std = np.std(energies)
     avg_num_atoms = np.mean(num_atoms)
 
-    all_forces = np.concatenate(forces, axis=0)  # shape: (total_atoms, 3)
     force_mean = np.mean(all_forces, axis=0)
     force_std = np.std(all_forces, axis=0)
     force_std_scalar = np.mean(force_std)
@@ -72,40 +89,44 @@ def _compute_mean_std(args: argparse.Namespace):
 
 
 def _linref(args: argparse.Namespace):
-    @cache
-    def dataset():
-        return PretrainAseDbDataset(
-            PretrainDatasetConfig(
-                src=args.src, 
-                args=argparse.Namespace(seed=0)
-                )
-            )
-        # return PretrainLmdbDataset(PretrainDatasetConfig(src=args.src))
-
-    def extract_data(idx):
-        data = dataset()[idx]
-        x = (
-            scatter(
+    dataset = PretrainAseDbDataset(
+        PretrainDatasetConfig(
+            src=args.src,
+            args=argparse.Namespace(seed=0)
+        )
+    )
+    
+    def collate_fn(batch):
+        # Custom collate since we just need atomic number counts and energies
+        X_list, y_list = [], []
+        for data in batch:
+            x = scatter(
                 torch.ones(data.atomic_numbers.shape[0]),
                 data.atomic_numbers.long(),
                 dim_size=95,
-            )
-            .long()
-            .numpy()
-        )
-        y = data.y
-        return (x, y)
+            ).long().numpy()
+            y = data.y
+            X_list.append(x)
+            y_list.append(y)
+        return np.stack(X_list), np.array(y_list)
+    
+    dataloader = DataLoader(
+        dataset,
+        batch_size=100,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        collate_fn=collate_fn
+    )
 
-    pool = mp.Pool(args.num_workers)
-    indices = range(len(dataset()))
+    X_list = []
+    y_list = []
 
-    outputs = list(tqdm(pool.imap(extract_data, indices), total=len(indices)))
+    for X_batch, y_batch in tqdm(dataloader, total=len(dataloader)):
+        X_list.append(X_batch)
+        y_list.append(y_batch)
 
-    features = [x[0] for x in outputs]
-    targets = [x[1] for x in outputs]
-
-    X = np.vstack(features)
-    y = targets
+    X = np.vstack(X_list)
+    y = np.concatenate(y_list)
 
     coeff = np.linalg.lstsq(X, y, rcond=None)[0]
     np.savez_compressed(args.out_path, coeff=coeff)
@@ -127,7 +148,7 @@ def main():
     linref_parser = subparsers.add_parser("linref")
     linref_parser.add_argument("--src", type=Path, required=True)
     linref_parser.add_argument("--out_path", type=Path, required=True)
-    linref_parser.add_argument("--num_workers", type=int, default=100)
+    linref_parser.add_argument("--num_workers", type=int, default=32)
     linref_parser.set_defaults(fn=_linref)
 
     args = parser.parse_args()
