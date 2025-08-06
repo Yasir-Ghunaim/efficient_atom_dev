@@ -79,7 +79,13 @@ def extract_features(model, args, use_mean_aggregation=False, aggregate_by_atoms
 
     dataset = model.train_dataset()
     num_workers = args.num_workers
-    dataloader = DataLoader(dataset, num_workers=num_workers, collate_fn=collate_fn, batch_size=1, shuffle=True)
+    dataloader = DataLoader(
+        dataset,
+        num_workers=num_workers,
+        collate_fn=collate_fn,
+        batch_size=args.batch_size, 
+        shuffle=True
+    )
 
     file_suffix = ""
     file_suffix = args.model_name
@@ -92,39 +98,56 @@ def extract_features(model, args, use_mean_aggregation=False, aggregate_by_atoms
 
     extracted_data = []
 
-    for sample in tqdm(dataloader):
-        # Skip samples with fewer than 4 atoms as they don't work with GemNet-OC
-        if sample.atomic_numbers.shape[0] < 4:
-            print(f"Skipping sample with {sample.atomic_numbers.shape[0]} atoms.")
+    for batch in tqdm(dataloader, desc="Extracting features"):
+
+        batch = batch.to(device)
+        features_dict = model(batch)
+        if not features_dict:
             continue
 
-        sample = sample.to(device)
-        features_dict = model(sample)
-
         # Node-level features
-        if features_dict:
-            node_features = features_dict['node'].detach().cpu()
+        node_features = features_dict['node'].detach().cpu()
+        batch_indices = batch.batch.detach().cpu()
 
-            if 'edge' in features_dict:
-                edge_features = features_dict['edge'].detach().cpu()
-                edge_to_node_mapping = features_dict['idx_t'].detach().cpu()
-                collapsed_edge_features = scatter(edge_features, edge_to_node_mapping, dim=0, dim_size=node_features.size(0), reduce="mean")
-            else:
-                collapsed_edge_features = None
+        if 'edge' in features_dict:
+            edge_features = features_dict['edge'].detach().cpu()
+            edge_to_node_mapping = features_dict['idx_t'].detach().cpu()
+            collapsed_edge_features = scatter(
+                edge_features, 
+                edge_to_node_mapping, 
+                dim=0, 
+                dim_size=node_features.size(0), 
+                reduce="mean"
+            )
+        else:
+            collapsed_edge_features = None
 
+        for graph_idx in range(batch.num_graphs):
+            # check natoms before extracting features
+            natoms = (batch_indices == graph_idx).sum().item()
+            if natoms < 4:
+                print(f"Skipping graph {graph_idx} with only {natoms} atoms.")
+                continue
+
+            node_indices = (batch_indices == graph_idx).nonzero(as_tuple=True)[0]
+
+            graph_features = node_features[node_indices]
             if collapsed_edge_features is not None:
-                extracted_data.append({
-                    "node_features": node_features.numpy(),
-                    "edge_features": collapsed_edge_features.numpy()
-                })
+                graph_edge_features = collapsed_edge_features[node_indices]
             else:
-                extracted_data.append({
-                    "node_features": node_features.numpy()
-                })
+                graph_edge_features = None
+
+            extracted_data.append({
+                "node_features": graph_features.numpy(),
+                "edge_features": graph_edge_features.numpy() if graph_edge_features is not None else None
+            })
 
             sample_idx += 1
-            if sample_idx == max_samples:
+            if sample_idx >= max_samples:
                 break
+
+        if sample_idx >= max_samples:
+            break
 
 
     task_name = args.dataset_name
@@ -145,7 +168,7 @@ config.backbone.regress_forces = True
 config.backbone.direct_forces = True
 if args.checkpoint_tag == "ODAC":
     config.backbone.max_num_elements = 100
-elif args.checkpoint_tag == "MP":
+elif args.checkpoint_tag == "MP" or args.checkpoint_tag == "MPDense":
     config.backbone.max_num_elements = 96
 
 model = model_cls(config)
