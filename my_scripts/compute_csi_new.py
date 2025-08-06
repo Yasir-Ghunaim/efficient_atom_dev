@@ -1,13 +1,11 @@
 import csv
 import os
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from multiprocessing import Pool, get_context
+from itertools import product
+from joblib import Parallel, delayed
 from tqdm import tqdm
 import numpy as np
-from scipy import linalg
 import torch
-from joblib import Parallel, delayed
-
+from scipy import linalg
 
 
 def compute_statistics_of_features(path, agg_operation):
@@ -90,9 +88,9 @@ def calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
     return diff.dot(diff) + np.trace(sigma1) + np.trace(sigma2) - 2 * tr_covmean
 
 
+
 def compute_csi(m1, s1, m2, s2):
-    csi_score = calculate_frechet_distance(m1, s1, m2, s2)
-    return csi_score
+    return calculate_frechet_distance(m1, s1, m2, s2)
 
 
 def extract_metadata(file_path):
@@ -121,50 +119,57 @@ def extract_metadata(file_path):
     sampling_type = sampling_type.replace(".pt", "")
     return sampling_type or "unknown", seed_number or "unknown"
 
-def main():
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("path", type=str, nargs=2, help="Paths to upstream and downstream datasets")
-    parser.add_argument("--num-workers", type=int, default=3, help="Number of processes to use")
-    parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
-    parser.add_argument("--agg_operation", type=str, default="flat", help="Aggregation operation")
-    parser.add_argument("--checkpoint_tag", type=str, default="OC20", help="checkpoint tag")
-    parser.add_argument("--suffix", type=str, default="", help="Optional suffix for the output file name")
 
-    args = parser.parse_args()
+def process_one(up, down, tag, model_name="equiformer_v2", agg_operation="flat"):
+    try:
+        upstream_features_path = f"dataset_features_{model_name}_{tag}/{up}_Node_Seed0_Samplingbalanced.pt"
+        downstream_features_path = f"dataset_features_{model_name}_{tag}/{down}_Node_Seed0_Samplingrandom.pt"
 
-    # Load upstream dataset features
-    upstream_features_path = f"dataset_features_{args.model_name}_{args.checkpoint_tag}/{args.path[0]}"
-    upstream_mu, upstream_sigma = compute_statistics_of_features(upstream_features_path, args.agg_operation)
+        upstream_mu, upstream_sigma = compute_statistics_of_features(upstream_features_path, agg_operation)
+        downstream_mu, downstream_sigma = compute_statistics_of_features(downstream_features_path, agg_operation)
 
-    # Load downstream dataset features
-    downstream_features_path = f"dataset_features_{args.model_name}_{args.checkpoint_tag}/{args.path[1]}"
-    downstream_mu, downstream_sigma = compute_statistics_of_features(downstream_features_path, args.agg_operation)
+        upstream = up
+        downstream = down
+        if down.startswith("matbench"):
+            downstream = "matbench_" + downstream_features_path.split("/")[-1].split("_")[1]
 
-    # Extract metadata
-    upstream = upstream_features_path.split("/")[-1].split("_")[0]
-    downstream = downstream_features_path.split("/")[-1].split("_")[0]
-    if downstream == "matbench":
-        downstream = "matbench_" + downstream_features_path.split("/")[-1].split("_")[1]  
-    sampling, seed = extract_metadata(upstream_features_path)
-    
-    print(f"Upstream: {upstream}, Downstream: {downstream}, Sampling: {sampling}, Seed: {seed}")
+        sampling, seed = extract_metadata(upstream_features_path)
+        # print(f"Upstream: {upstream}, Downstream: {downstream}, Sampling: {sampling}, Seed: {seed}")
 
+        csi_score = compute_csi(upstream_mu, upstream_sigma, downstream_mu, downstream_sigma)
+        print(f"Upstream: {upstream}, Downstream: {downstream}, CSI Score: {csi_score:.2f}")
+        print()
+        print("=============================================================")
 
-    csi_score = compute_csi(upstream_mu, upstream_sigma, downstream_mu, downstream_sigma)
-    print(f"CSI Score: {csi_score:.2f}")
-    print()
-    print("=============================================================")
-
-    # Save the CSI score
-    suffix_part = f"_{args.suffix}" if args.suffix else ""
-    save_filename = f"csi_scores_{args.agg_operation}_{args.model_name}_{args.checkpoint_tag}{suffix_part}.csv"
-    file_exists = os.path.isfile(save_filename)
-    with open(save_filename, "a", newline='') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["Upstream", "Downstream", "Sampling", "Seed", "CSI Score"])
-        writer.writerow([upstream, downstream, sampling, seed, csi_score])
+        return [upstream, downstream, sampling, seed, tag, csi_score]
+    except Exception as e:
+        print(f"Error in {up}-{down}-{tag}: {e}")
+        return None
 
 
 if __name__ == "__main__":
-    main()
+    upstream = ["ani1x", "transition1x", "oc20", "oc22"]
+    downstream = ["rmd17", "md22", "qm9", "spice", "omat"]
+    checkpoint_tags = ["OC20", "MP", "ODAC"]
+    model_name = "equiformer_v2"
+    agg_operation = "flat"
+    n_jobs = 5  # adjust based on CPU cores
+
+    tasks = list(product(upstream, downstream, checkpoint_tags))
+
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(process_one)(u, d, t, model_name, agg_operation)
+        for u, d, t in tqdm(tasks)
+    )
+
+    save_filename = f"csi_scores_{agg_operation}_{model_name}.csv"
+    file_exists = os.path.isfile(save_filename)
+    with open(save_filename, "a", newline="") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Upstream", "Downstream", "Sampling", "Seed", "CheckpointTag", "CSI Score"])
+        for row in results:
+            if row is not None:
+                writer.writerow(row)
+
+    print(f"Saved results to {save_filename}")

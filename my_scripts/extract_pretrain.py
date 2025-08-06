@@ -85,6 +85,8 @@ def get_dataset_and_model(config, args):
             full_path = checkpoint_path / "eqv2_31M_odac_new.pt"
         elif args.checkpoint_tag == "MP":
             full_path = checkpoint_path / "eqV2_31M_mp.pt"
+        elif args.checkpoint_tag == "MPDense":
+            full_path = checkpoint_path / "eqV2_dens_31M_mp.pt"
 
         print("Loading checkpoint:", full_path)
         full_state_dict = torch.load(full_path)['state_dict']
@@ -95,11 +97,20 @@ def get_dataset_and_model(config, args):
         for key, value in full_state_dict.items()
     }
 
-    if args.checkpoint_tag == "MP":
+    if args.checkpoint_tag == "MP" or args.checkpoint_tag == "MPDense":
         full_state_dict = {
             key.replace("module.", ""): value
             for key, value in full_state_dict.items()
         }
+
+        # Remove keys starting with "backbone.force_embedding"
+        full_state_dict = {
+            key: value
+            for key, value in full_state_dict.items()
+            if not (key.startswith("backbone.force_embedding"))
+        }
+
+        
     
 
     if args.compute_sample_difficulty:
@@ -345,7 +356,7 @@ def main():
 
     if args.checkpoint_tag == "ODAC":
         config.backbone.max_num_elements = 100
-    elif args.checkpoint_tag == "MP":
+    elif args.checkpoint_tag == "MP" or args.checkpoint_tag == "MPDense":
         config.backbone.max_num_elements = 96
 
     dataset, model = get_dataset_and_model(config, args)
