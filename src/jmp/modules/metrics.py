@@ -47,7 +47,7 @@ class FMTaskMetrics(nn.Module):
         self.num_tasks = num_tasks
         self.free_atoms_only = free_atoms_only
 
-        self.energy_mae = torchmetrics.MeanAbsoluteError()
+        # self.energy_mae = torchmetrics.MeanAbsoluteError()
         self.forces_mae = torchmetrics.MeanAbsoluteError()
 
         if units := self.config.get("additional_units", []):
@@ -56,9 +56,9 @@ class FMTaskMetrics(nn.Module):
                     raise ValueError(
                         f"Invalid unit: {unit}. Valid units: {VALID_UNITS}"
                     )
-            self.energy_mae_additional = TypedModuleList(
-                [torchmetrics.MeanAbsoluteError() for _ in units]
-            )
+            # self.energy_mae_additional = TypedModuleList(
+            #     [torchmetrics.MeanAbsoluteError() for _ in units]
+            # )
             self.forces_mae_additional = TypedModuleList(
                 [torchmetrics.MeanAbsoluteError() for _ in units]
             )
@@ -67,26 +67,26 @@ class FMTaskMetrics(nn.Module):
     def forward(self, batch: Batch, energy: torch.Tensor, forces: torch.Tensor):
         metrics: dict[str, torchmetrics.Metric] = {}
 
-        self._energy_mae(batch, energy, self.energy_mae)
+        # self._energy_mae(batch, energy, self.energy_mae)
         self._forces_mae(batch, forces, self.forces_mae)
 
-        metrics["energy_mae"] = self.energy_mae
+        # metrics["energy_mae"] = self.energy_mae
         metrics["forces_mae"] = self.forces_mae
 
         if additional := self.config.get("additional_units", []):
-            for unit, energy_metric, forces_metric in zip(
-                additional, self.energy_mae_additional, self.forces_mae_additional
+            for unit, forces_metric in zip(
+                additional, self.forces_mae_additional
             ):
                 assert (
                     unit in VALID_UNITS
                 ), f"Invalid unit: {unit}. Valid units: {VALID_UNITS}"
                 sanitized_unit = unit.replace("/", "_")
-                self._energy_mae(
-                    batch,
-                    energy,
-                    energy_metric,
-                    transform=partial(_transform, from_="eV", to=unit),
-                )
+                # self._energy_mae(
+                #     batch,
+                #     energy,
+                #     energy_metric,
+                #     transform=partial(_transform, from_="eV", to=unit),
+                # )
                 self._forces_mae(
                     batch,
                     forces,
@@ -94,7 +94,7 @@ class FMTaskMetrics(nn.Module):
                     transform=partial(_transform, from_="eV", to=unit),
                 )
 
-                metrics[f"energy_mae_{sanitized_unit}"] = energy_metric
+                # metrics[f"energy_mae_{sanitized_unit}"] = energy_metric
                 metrics[f"forces_mae_{sanitized_unit}"] = forces_metric
 
         return {f"{self.name}/{name}": metric for name, metric in metrics.items()}
@@ -165,10 +165,11 @@ class FMMetrics(nn.Module):
     @override
     def forward(self, batch: Batch, energy: torch.Tensor, forces: torch.Tensor):
         if self.denormalize:
-            batch, d = denormalize_batch(batch, {"y": energy, "force": forces})
-            energy, forces = d["y"], d["force"]
+            batch, d = denormalize_batch(batch, {"force": forces})
+            forces = d["force"]
+            # energy, forces = d["y"], d["force"]
 
         metrics: dict[str, torchmetrics.Metric] = {}
         for task_metrics in self.task_metrics:
-            metrics.update(task_metrics(batch, energy, forces))
+            metrics.update(task_metrics(batch, None, forces))
         return metrics

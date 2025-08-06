@@ -296,15 +296,15 @@ class Output(Base[PretrainConfig], nn.Module):
         ):
             return ([emb_size] * num_mlps) + [num_targets]
 
-        self.out_energy = TypedModuleList(
-            [
-                self.mlp(
-                    dims(self.config.backbone.emb_size_atom),
-                    activation=self.config.activation_cls,
-                )
-                for _ in self.config.tasks
-            ]
-        )
+        # self.out_energy = TypedModuleList(
+        #     [
+        #         self.mlp(
+        #             dims(self.config.backbone.emb_size_atom),
+        #             activation=self.config.activation_cls,
+        #         )
+        #         for _ in self.config.tasks
+        #     ]
+        # )
         self.out_forces = TypedModuleList(
             [
                 self.mlp(
@@ -317,7 +317,7 @@ class Output(Base[PretrainConfig], nn.Module):
 
     @override
     def forward(self, data: BaseData, backbone_out: GOCBackboneOutput):
-        energy = backbone_out["energy"]
+        # energy = backbone_out["energy"]
         forces = backbone_out["forces"]
         V_st = backbone_out["V_st"]
         idx_t = backbone_out["idx_t"]
@@ -326,31 +326,34 @@ class Output(Base[PretrainConfig], nn.Module):
         n_molecules = int(torch.max(batch).item() + 1)
         n_atoms = data.atomic_numbers.shape[0]
 
-        energy_list: list[torch.Tensor] = []
+        # energy_list: list[torch.Tensor] = []
         forces_list: list[torch.Tensor] = []
 
-        for energy_mlp, forces_mlp, task in zip(
-            self.out_energy, self.out_forces, self.config.tasks
-        ):
-            E_t = energy_mlp(energy)  # (n_atoms, 1)
-            E_t = scatter(
-                E_t,
-                batch,
-                dim=0,
-                dim_size=n_molecules,
-                reduce=task.node_energy_reduction,
-            )
-            energy_list.append(E_t)  # (bsz, 1)
+        # for energy_mlp, forces_mlp, task in zip(
+        #     self.out_energy, self.out_forces, self.config.tasks
+        # ):
+        #     E_t = energy_mlp(energy)  # (n_atoms, 1)
+        #     E_t = scatter(
+        #         E_t,
+        #         batch,
+        #         dim=0,
+        #         dim_size=n_molecules,
+        #         reduce=task.node_energy_reduction,
+        #     )
+        #     energy_list.append(E_t)  # (bsz, 1)
 
+        for forces_mlp, task in zip(
+            self.out_forces, self.config.tasks
+        ):
             F_st = forces_mlp(forces)  # (n_edges, 1)
             F_st = F_st * V_st  # (n_edges, 3)
             F_t = scatter(F_st, idx_t, dim=0, dim_size=n_atoms, reduce="sum")
             forces_list.append(F_t)  # (n_atoms, 3)
 
-        E, _ = pack(energy_list, "bsz *")
+        # E, _ = pack(energy_list, "bsz *")
         F, _ = pack(forces_list, "n_atoms p *")
 
-        return E, F
+        return F
 
 
 class EquiformerV2MultiOutput(nn.Module):
@@ -649,13 +652,13 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         self, batch: BaseData, energy: torch.Tensor, forces: torch.Tensor
     ):
         # Compute the energy loss
-        energy_loss, energy_loss_mask = self._energy_loss(
-            batch, energy
-        )  # (b, t), (b, t)
-        energy_loss = self._reduce_loss(
-            energy_loss, energy_loss_mask, reduction=self.config.energy_loss_reduction
-        )
-        self.log("energy_loss", energy_loss)
+        # energy_loss, energy_loss_mask = self._energy_loss(
+        #     batch, energy
+        # )  # (b, t), (b, t)
+        # energy_loss = self._reduce_loss(
+        #     energy_loss, energy_loss_mask, reduction=self.config.energy_loss_reduction
+        # )
+        # self.log("energy_loss", energy_loss)
 
         # Compute the force loss
         force_loss, force_loss_mask = self._force_loss(batch, forces)
@@ -673,7 +676,7 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
         self.log("force_loss", force_loss)
 
         # Combine the losses
-        loss = energy_loss + force_loss
+        loss = force_loss #energy_loss + force_loss
         self.log("loss", loss)
 
         return loss
@@ -681,20 +684,20 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
     @override
     def training_step(self, batch: BaseData, batch_idx: int):
         with self.log_context(prefix="train/"):
-            energy, forces = self(batch)
+            forces = self(batch)
 
-            loss = self.compute_losses(batch, energy=energy, forces=forces)
-            self.log_dict(self.train_metrics(batch, energy=energy, forces=forces))
+            loss = self.compute_losses(batch, energy=None, forces=forces)
+            self.log_dict(self.train_metrics(batch, energy=None, forces=forces))
 
             return loss
 
     @override
     def validation_step(self, batch: BaseData, batch_idx: int):
         with self.log_context(prefix="val/"):
-            energy, forces = self(batch)
+            forces = self(batch)
 
-            loss = self.compute_losses(batch, energy=energy, forces=forces)
-            metrics = self.val_metrics(batch, energy=energy, forces=forces)
+            loss = self.compute_losses(batch, energy=None, forces=forces)
+            metrics = self.val_metrics(batch, energy=None, forces=forces)
             self.log_dict(metrics)
 
     def configure_lr_scheduler(
