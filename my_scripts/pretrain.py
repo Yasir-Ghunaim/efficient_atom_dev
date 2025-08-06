@@ -44,7 +44,7 @@ def parse_args():
 
 def build_job_name(args, config):
     """Construct a job name based on the configuration."""
-    job_name = f"PT_{args.task}_lr{args.lr}_train{args.train_samples_limit}_val{args.val_samples_limit}_ep{args.epochs}"
+    job_name = f"Reb_PT_{args.task}_lr{args.lr}_train{args.train_samples_limit}_val{args.val_samples_limit}_ep{args.epochs}"
     if args.scratch:
         job_name += f"_scratch"
 
