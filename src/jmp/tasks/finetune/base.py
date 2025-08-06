@@ -1762,6 +1762,7 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
                 batch_sampler=batch_sampler,
                 collate_fn=self.collate_fn,
                 num_workers=self.config.num_workers,
+                pin_memory=self.config.pin_memory,
             )
 
         return data_loader
@@ -1792,6 +1793,7 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
                 batch_sampler=batch_sampler,
                 collate_fn=self.collate_fn,
                 num_workers=self.config.num_workers,
+                pin_memory=self.config.pin_memory,
             )
         return data_loader
 
@@ -1821,6 +1823,7 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
                 batch_sampler=batch_sampler,
                 collate_fn=self.collate_fn,
                 num_workers=self.config.num_workers,
+                pin_memory=self.config.pin_memory,
             )
         return data_loader
 
