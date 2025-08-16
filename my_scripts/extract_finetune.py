@@ -125,9 +125,9 @@ def extract_features(model, args, use_mean_aggregation=False, aggregate_by_atoms
         for graph_idx in range(batch.num_graphs):
             # check natoms before extracting features
             natoms = (batch_indices == graph_idx).sum().item()
-            if natoms < 4:
-                print(f"Skipping graph {graph_idx} with only {natoms} atoms.")
-                continue
+            # if natoms < 4:
+            #     print(f"Skipping graph {graph_idx} with only {natoms} atoms.")
+            #     continue
 
             node_indices = (batch_indices == graph_idx).nonzero(as_tuple=True)[0]
 

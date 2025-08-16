@@ -18,9 +18,9 @@ DOWNSTREAM = {
     'md22': 'MD22',
     'spice': 'SPICE',
     'qm9': 'QM9',
-    'qmof': 'QMOF',
-    'matbench_fold0': 'MatBench',
     'omat': 'OMat24',
+    'qmof': 'QMOF',
+    'matbench_fold0': 'MatBench'
 }
 
 def plot_fid_bar_with_ranges(
@@ -54,8 +54,8 @@ def plot_fid_bar_with_ranges(
     # Plot the bar chart
     num_downstream_datasets = len(stats['Downstream'].unique())
     x_positions = range(num_downstream_datasets)
-    if num_downstream_datasets == 4:
-        fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*2.8), 3.5))
+    if num_downstream_datasets == 5:
+        fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*2.3), 3.5))
         bar_width = 0.2
     elif num_downstream_datasets == 2:
         fig, ax = plt.subplots(figsize=(int(num_downstream_datasets*3.5), 3.0))
@@ -137,20 +137,21 @@ def plot_fid_bar_with_ranges(
 
 
 if __name__ == "__main__":
+    feature_extractor = "MPDense"
     # File path
-    fid_file = "csi_scores_flat_equiformer_v2.csv"
+    fid_file = f"csi_scores_flat_equiformer_v2_{feature_extractor}.csv"
 
     # Read the CSV file
     fid_df = pd.read_csv(fid_file)
     sampling_strategy = "balanced"
 
-    downstream_list_1 = ['rmd17', 'md22', 'spice', 'qm9']
-    output_filename_1 = "CSI_bar_balanced_flat_equiformerV2_ID.png"
+    downstream_list_1 = ['rmd17', 'md22', 'spice', 'qm9', 'omat']
+    output_filename_1 = f"CSI_bar_balanced_flat_equiformerV2_ID_{feature_extractor}.png"
     plot_fid_bar_with_ranges(fid_df, sampling_strategy=sampling_strategy, downstream_list=downstream_list_1, output_filename=output_filename_1)
 
-    downstream_list_2 = ['qmof', 'matbench_fold0']
-    output_filename_2 = "CSI_bar_balanced_flat_equiformerV2_OOD.png"
-    plot_fid_bar_with_ranges(fid_df, sampling_strategy=sampling_strategy, downstream_list=downstream_list_2, output_filename=output_filename_2)
+    # downstream_list_2 = ['qmof', 'matbench_fold0']
+    # output_filename_2 = "CSI_bar_balanced_flat_equiformerV2_OOD.png"
+    # plot_fid_bar_with_ranges(fid_df, sampling_strategy=sampling_strategy, downstream_list=downstream_list_2, output_filename=output_filename_2)
 
     # Main random
     # sampling_strategy = "random"

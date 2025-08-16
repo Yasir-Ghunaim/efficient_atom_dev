@@ -18,16 +18,17 @@ conda activate efficient_atom_den
 
 cd ..
 
-tasks=("rmd17" "md22" "qm9" "spice") # "qmof" "matbench")
-# checkpoint_tags=("OC20" "ODAC" "MP")
-checkpoint_tags=("OC20")
+# tasks=("rmd17" "md22" "qm9" "spice") # "qmof" "matbench")
+tasks=("matbench")
+checkpoint_tags=("ODAC" "MP" "MPDense")
+# checkpoint_tags=("OC20")
 
 # Iterate over all tasks
 for tag in "${checkpoint_tags[@]}"; do
   for task in "${tasks[@]}"; do
     CUDA_VISIBLE_DEVICES=0 python extract_finetune.py \
       --dataset_name $task \
-      --batch_size 5 \
+      --batch_size 1 \
       --number_of_samples 10000 \
       --model_name "equiformer_v2" \
       --seed 0 \
