@@ -43,8 +43,8 @@ parser.add_argument("--epochs", type=int, default=1, help="Number of training ep
 parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
 parser.add_argument("--number_of_samples", type=int, default=10000, help="Number of samples to use for feature extraction")
 parser.add_argument("--batch_size", type=int, default=1, help="Training batch size")
-# parser.add_argument("--sampling_strategy", type=str, choices=["random"],
-#                         default="random", help="Sampling strategy to use: 'random'")
+parser.add_argument("--sampling_strategy", type=str, choices=["random", "balanced"],
+                        default="random", help="Sampling strategy to use: 'random'")
 parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")
 parser.add_argument("--checkpoint_tag", type=str, default="OC20", help="checkpoint tag")
 
@@ -154,7 +154,7 @@ def extract_features(model, args, use_mean_aggregation=False, aggregate_by_atoms
     if task_name == "matbench":
         task_name = f"{task_name}_fold{args.fold}"
     seed = args.seed
-    sampling = "random"
+    sampling = args.sampling_strategy
 
     output_file = f"./{save_folder}/{task_name}_Node_Seed{seed}_Sampling{sampling}.pt"
     torch.save(extracted_data, output_file)

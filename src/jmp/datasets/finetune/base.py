@@ -95,10 +95,10 @@ class LmdbDataset(Dataset[T], ContextDecorator):
         else:
             self.extract_features = False
 
-        # if hasattr(args, "sampling_strategy"):
-        #     self.sampling_strategy = args.sampling_strategy
-        # else:
-        #     self.sampling_strategy = "random"
+        if hasattr(args, "sampling_strategy"):
+            self.sampling_strategy = args.sampling_strategy
+        else:
+            self.sampling_strategy = "random"
 
         if hasattr(args, "number_of_samples"):
             self.max_samples = args.number_of_samples
@@ -155,9 +155,9 @@ class LmdbDataset(Dataset[T], ContextDecorator):
             self.max_samples = self.num_samples
 
         # Extract molecule names
-        # self.molecule_df = None
-        # if self.extract_features:
-        #     self.load_molecule_mappings()
+        self.molecule_df = None
+        if self.extract_features and args.sampling_strategy == "balanced":
+            self.load_molecule_mappings()
         
 
         # Perform sampling if max_samples is specified
@@ -166,26 +166,26 @@ class LmdbDataset(Dataset[T], ContextDecorator):
         else:
             self.shuffled_indices = list(range(self.num_samples))
 
-    # def load_molecule_mappings(self):
-    #     """Load molecule mappings into a DataFrame."""
-    #     mapping_files = sorted(self.path.glob("*.txt"), key=lambda x: int(x.stem.split('.')[1]))
-    #     dfs = [pd.read_csv(f) for f in mapping_files]
-    #     self.molecule_df = pd.concat(dfs, ignore_index=True)
+    def load_molecule_mappings(self):
+        """Load molecule mappings into a DataFrame."""
+        mapping_files = sorted(self.path.glob("*.txt"), key=lambda x: int(x.stem.split('.')[1]))
+        dfs = [pd.read_csv(f) for f in mapping_files]
+        self.molecule_df = pd.concat(dfs, ignore_index=True)
 
     def _apply_sampling(self, args: argparse.Namespace):
         """Apply the specified sampling strategy."""
-        # if self.sampling_strategy == "random":
-        self.shuffled_indices = apply_random_sampling(self.num_samples, self.max_samples, self.seed)
-        # elif args.sampling_strategy == "balanced":
-        #     self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, self.max_samples, self.seed, allow_repetition=True)
-        # elif args.sampling_strategy == "balancedNoRep":
-        #     self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, self.max_samples, self.seed, allow_repetition=False)
-        # elif self.config.args.sampling_strategy == "stratified":
-        #     self.shuffled_indices = apply_stratified_sampling(self.molecule_df, self.max_samples, self.seed)
-        # elif args.sampling_strategy == "uniform":
-        #     self.shuffled_indices = apply_naive_uniform_sampling(self.molecule_df, self.max_samples, self.seed)
-        # else:
-        #     raise ValueError(f"Invalid sampling strategy: {self.sampling_strategy}")
+        if self.sampling_strategy == "random":
+            self.shuffled_indices = apply_random_sampling(self.num_samples, self.max_samples, self.seed)
+        elif args.sampling_strategy == "balanced":
+            self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, self.max_samples, self.seed, allow_repetition=True)
+        elif args.sampling_strategy == "balancedNoRep":
+            self.shuffled_indices = apply_class_balanced_sampling(self.molecule_df, self.max_samples, self.seed, allow_repetition=False)
+        elif self.config.args.sampling_strategy == "stratified":
+            self.shuffled_indices = apply_stratified_sampling(self.molecule_df, self.max_samples, self.seed)
+        elif args.sampling_strategy == "uniform":
+            self.shuffled_indices = apply_naive_uniform_sampling(self.molecule_df, self.max_samples, self.seed)
+        else:
+            raise ValueError(f"Invalid sampling strategy: {self.sampling_strategy}")
 
         return self.shuffled_indices
 
