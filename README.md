@@ -7,12 +7,12 @@ This repository is for the paper "Towards Data-Efficient Pretraining for Atomic 
 ## Installation
 To set up the conda environment, run the following command:
 ```bash
-conda env create -f environment.yml -n efficient_atom
+conda env create -f environment.yml -n atom_denoise
 ```
 
 Then, activate the environment and install the package:
 ```bash
-conda activate efficient_atom
+conda activate atom_denoise
 pip install -e .
 ```
 

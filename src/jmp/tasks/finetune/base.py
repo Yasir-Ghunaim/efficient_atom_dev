@@ -42,6 +42,7 @@ from ...datasets.finetune.base_aselmdb import FinetuneAseLMDBDataset
 from ...datasets.finetune_pdbbind import PDBBindConfig, PDBBindDataset
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone
+from ...models.equiformer_v2.equiformer_v2_dens import EqV2DeNSBackbone
 from ...models.equiformer_v2.config import EquiformerV2Config
 from ...models.gemnet.config import BackboneConfig
 from ...models.gemnet.layers.base_layers import ScaledSiLU
@@ -846,6 +847,8 @@ class FinetuneModelBase(LightningModuleBase[TConfig], Generic[TConfig]):
             backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
         elif self.config.model_name == "equiformer_v2":
             backbone = EquiformerV2Backbone(**dict(self.config.backbone))
+        elif self.config.model_name == "equiformer_v2_dens":
+            backbone = EqV2DeNSBackbone(**dict(self.config.backbone))
 
         return backbone
 

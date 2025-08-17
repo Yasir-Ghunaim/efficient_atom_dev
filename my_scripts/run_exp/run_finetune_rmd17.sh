@@ -12,7 +12,7 @@
 #####
 hostname
 nvidia-smi
-conda activate efficient_atom
+conda activate atom_denoise
 ##### 
 
 cd ..
@@ -23,5 +23,5 @@ CUDA_VISIBLE_DEVICES=0 python finetune.py \
     --epochs 1000 \
     --model_name "equiformer_v2" \
     --checkpoint_path "transition1x_1M_5ep_eqv2_nqoyckwl_noEMA" \
-    --enable_wandb \
+    # --enable_wandb \
     # --scratch \

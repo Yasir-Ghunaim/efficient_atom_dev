@@ -45,7 +45,9 @@ def jmp_l_pt_config_(config: PretrainConfig, args: argparse.Namespace):
     # config.backbone = BackboneConfig.large() if args.large else BackboneConfig.small()
     if "gemnet" in config.model_name:
         config.backbone = BackboneConfig.large() if args.large else BackboneConfig.small()
-    elif "equiformer_v2" in config.model_name:
+    elif config.model_name == "equiformer_v2":
+        config.backbone = EquiformerV2Config.small()
+    elif config.model_name == "equiformer_v2_dens":
         config.backbone = EquiformerV2Config.small()
 
     # Optimizer settings

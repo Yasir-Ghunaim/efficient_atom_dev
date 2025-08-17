@@ -9,7 +9,7 @@
 #SBATCH --cpus-per-task=100
 
 #####
-conda activate efficient_atom
+conda activate atom_denoise
 ##### 
 
 python -m jmp.datasets.scripts.omat_preprocess.omat_linear_ref linref \

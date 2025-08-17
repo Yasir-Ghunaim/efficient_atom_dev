@@ -48,6 +48,7 @@ from jmp.fairchem.core.datasets.atomic_data import AtomicData
 from ...models.gemnet.backbone import GemNetOCBackbone, GOCBackboneOutput
 from ...models.gemnet.config import BackboneConfig
 from ...models.equiformer_v2.equiformer_v2 import EquiformerV2Backbone, EquiformerV2EnergyHead, EquiformerV2ForceHead
+from ...models.equiformer_v2.equiformer_v2_dens import EqV2DeNSBackbone
 from ...models.equiformer_v2.config import EquiformerV2Config
 
 from ...models.gemnet.layers.base_layers import ScaledSiLU
@@ -434,6 +435,9 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             backbone = GemNetOCBackbone(self.config.backbone, **dict(self.config.backbone))
         elif self.config.model_name == "equiformer_v2":
             backbone = EquiformerV2Backbone(**dict(self.config.backbone))
+        elif self.config.model_name == "equiformer_v2_dens":
+            backbone = EqV2DeNSBackbone(**dict(self.config.backbone))
+        
         return backbone
 
     @override
@@ -533,6 +537,10 @@ class PretrainModel(LightningModuleBase[TConfig], Generic[TConfig]):
             pred = self.output(batch, out)  # (n h), (n p h)
             
         elif self.config.model_name == "equiformer_v2":
+            out = self.backbone(batch) 
+            pred = self.output(batch, out)
+
+        elif self.config.model_name == "equiformer_v2_dens":
             out = self.backbone(batch) 
             pred = self.output(batch, out)
         

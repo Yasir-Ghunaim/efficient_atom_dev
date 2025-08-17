@@ -1,5 +1,5 @@
 # Root directory for datasets and checkpoints
-root_path: "/ibex/project/c2261"
+root_path: "/home/ghunaiym/research"
 
 # WandB configuration
 wandb:

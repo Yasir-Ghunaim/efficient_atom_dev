@@ -59,20 +59,20 @@ class EqV2DeNSBackbone(EquiformerV2Backbone):
         use_pbc_single: bool = False,
         regress_forces: bool = True,
         otf_graph: bool = True,
-        max_neighbors: int = 500,
-        max_radius: float = 5.0,
+        max_neighbors: int = 20,
+        max_radius: float = 12.0,
         max_num_elements: int = 90,
-        num_layers: int = 12,
+        num_layers: int = 8,
         sphere_channels: int = 128,
-        attn_hidden_channels: int = 128,
+        attn_hidden_channels: int = 64,
         num_heads: int = 8,
-        attn_alpha_channels: int = 32,
+        attn_alpha_channels: int = 64,
         attn_value_channels: int = 16,
-        ffn_hidden_channels: int = 512,
+        ffn_hidden_channels: int = 128,
         norm_type: str = "rms_norm_sh",
-        lmax_list: list[int] | None = None,
-        mmax_list: list[int] | None = None,
-        grid_resolution: int | None = None,
+        lmax_list: list[int] | None = [4],
+        mmax_list: list[int] | None = [2],
+        grid_resolution: int | None = 18,
         num_sphere_samples: int = 128,
         edge_channels: int = 128,
         use_atom_edge_embedding: bool = True,
@@ -173,9 +173,25 @@ class EqV2DeNSBackbone(EquiformerV2Backbone):
         self.device = data.pos.device
         num_atoms = len(data.atomic_numbers)
         atomic_numbers = data.atomic_numbers.long()
-        graph = self.generate_graph(
-            data,
-            enforce_max_neighbors_strictly=self.enforce_max_neighbors_strictly,
+        if atomic_numbers.max().item() >= self.max_num_elements:
+            print("Skipping sample with atomic number exceeding the maximum")
+            return None
+
+        # graph = self.generate_graph(
+        #     data,
+        #     enforce_max_neighbors_strictly=self.enforce_max_neighbors_strictly,
+        # )
+
+        graph = GraphData(
+            edge_index=data.main_edge_index,
+            edge_distance=data.main_distance,
+            edge_distance_vec=data.main_vector,
+            cell_offsets=data.main_cell_offset,
+            offset_distances=data.main_cell_offsets_distances,
+            neighbors=data.main_num_neighbors,
+            node_offset=0,
+            batch_full=data.batch,
+            atomic_numbers_full=data.atomic_numbers.long(),
         )
 
         data_batch = data.batch

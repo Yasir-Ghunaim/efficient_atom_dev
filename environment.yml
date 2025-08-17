@@ -1,4 +1,4 @@
-name: efficient_atom
+name: atom_denoise
 channels:
   - pyg
   - pytorch
