@@ -8,7 +8,7 @@ plt.style.use(['science', 'no-latex'])  # Apply scienceplot style
 # Data from the table
 labels = ['rMD17 (Aspirin)', 'MD22 (Ac-Ala3-NHMe)', 'SPICE (Solvated Amino Acids)', 'QM9 ($U_0$)']
 jmp_s = [6.7, 2.64, 5.71, 3.3]  # JMP-S values
-ani_1x = [5.4, 2.90, 5.13, 2.9]  # ANI-1x values
+ani_1x = [5.2, 2.92, 5.39, 3.1]  # ANI-1x values
 
 x = np.array([0, 1, 0, 1]) # Set x locations for each category
 width = 0.1  # Bar width to control spacing
