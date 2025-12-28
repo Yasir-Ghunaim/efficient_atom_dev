@@ -21,6 +21,7 @@ def parse_args():
     parser.add_argument("--num_workers", type=int, default=6, help="Number of workers")
     parser.add_argument("--train_samples_limit", type=int, default=1000000, help="Number of training samples to use")
     parser.add_argument("--val_samples_limit", type=int, default=-1, help="Number of validation samples to use")
+    parser.add_argument("--medium", action="store_true", help="Load the medium pre-trained checkpoint")
     parser.add_argument("--large", action="store_true", help="Load the large pre-trained checkpoint")
     parser.add_argument("--scratch", action="store_true", help="Train from scratch")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
