@@ -20,6 +20,7 @@ parser.add_argument("--fold", type=int, default=0, help="Fold for Matbench datas
 parser.add_argument("--lr", type=float, default=8.0e-5, help="Learning rate for the optimizer")
 parser.add_argument("--scratch", action="store_true", help="Train from scratch")
 parser.add_argument("--checkpoint_path", type=str, help="Path of finetune checkpoint to load")
+parser.add_argument("--medium", action="store_true", help="Load the medium pre-trained checkpoint")
 parser.add_argument("--large", action="store_true", help="Load the large pre-trained checkpoint")
 parser.add_argument("--root_path", type=str, help="Root path containing datasets and checkpoints")
 parser.add_argument("--model_name", type=str, default="gemnet", help="Model name")

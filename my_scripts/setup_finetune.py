@@ -103,6 +103,27 @@ def get_configs(dataset_name: str, target: str, args, extract_features = False):
     print(config)
     return config, init_model
 
+def remove_dens_blocks(state_dict):
+    prefixes = (
+        "module.energy_block",
+        "module.force_block",
+        "module.denoising_pos_block",
+        "module.energy_lin_ref",
+        "module.force_embedding.weight",
+        "module.force_embedding.bias",
+        "module.force_embedding.expand_index",
+    )
+    return {
+        k: v for k, v in state_dict.items()
+        if not k.startswith(prefixes)
+    }
+
+def rename_module_to_backbone(state_dict):
+    return {
+        (k.replace("module.", "backbone.", 1) if k.startswith("module.") else k): v
+        for k, v in state_dict.items()
+    }
+
 def load_checkpoint(model, config, args):
     # Here, we load our fine-tuned model on the same task
     if hasattr(args, "checkpoint_path") and args.checkpoint_path:
@@ -113,7 +134,13 @@ def load_checkpoint(model, config, args):
         state_dict = torch.load(ckpt_path, map_location="cpu")["state_dict"]
 
         if args.model_name == "equiformer_v2":
-            # Remove keys starting with "backbone.energy_block" and "backbone.force_block"
+
+            # Trigger DeNS-specific cleanup ONLY if this key exists
+            if any(k.startswith("module.denoising_pos_block") for k in state_dict):
+                print("Detected DeNS checkpoint.")
+                state_dict = remove_dens_blocks(state_dict)
+                state_dict = rename_module_to_backbone(state_dict)
+
             backbone_state_dict = filter_state_dict(state_dict, "backbone.")
             model.backbone.load_state_dict(backbone_state_dict)
             print("Loaded checkpoint for equiformer_v2")

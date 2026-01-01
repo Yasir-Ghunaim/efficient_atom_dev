@@ -47,7 +47,10 @@ def jmp_l_qm9_config_(config: QM9Config, target: QM9Target, base_path: Path, arg
     #     weight_decay=0.1,
     # )
     # Set data config
-    config.batch_size = 48
+    if args.batch_size:
+        config.batch_size = args.batch_size
+    else:
+        config.batch_size = 48
 
     if args.model_name == "equiformer_v2":
         config.optimizer = AdamWConfig(

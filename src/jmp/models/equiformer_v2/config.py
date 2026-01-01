@@ -220,7 +220,7 @@ class EquiformerV2Config(TypedConfig):
             direct_forces=False,
             max_neighbors=20,
             max_radius=12.0,
-            max_num_elements=90,
+            max_num_elements=100,
             use_pbc=True,
             use_pbc_single=False,
             otf_graph=True,

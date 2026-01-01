@@ -93,8 +93,12 @@ def jmp_l_rmd17_config_(
 
     # Gradient forces
     config.model_type = "forces"
-    config.gradient_forces = True
-    config.trainer.inference_mode = False
+    if config.model_name ==  "gemnet":
+        config.gradient_forces = True
+        config.trainer.inference_mode = False
+    elif config.model_name == "equiformer_v2":
+        config.backbone.regress_forces = True
+        config.backbone.direct_forces = True
     config.trainer.precision = "32-true"
 
     # Set up normalization
