@@ -63,6 +63,9 @@ def build_job_name(args, config):
     if args.large:
         job_name += "_large"
 
+    if args.model_name == "equiformer_v2":
+        job_name += f"_eqv2"
+
     return job_name
 
 def run_training(
