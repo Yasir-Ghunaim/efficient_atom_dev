@@ -19,7 +19,8 @@ def load_global_config(filename="global_config.yaml"):
 # Configure tasks based on command-line arguments
 def configure_tasks(args):
     dataset_path = Path(args.root_path) / "datasets"
-    OCP_path = Path("/ibex/ai/reference/OPC_OpenCatalystProject/data")
+    OCP_path = dataset_path
+    # OCP_path = Path("/ibex/ai/reference/OPC_OpenCatalystProject/data")
     train_samples_limit = args.train_samples_limit
     if args.val_samples_limit > 0:
         val_samples_limit = args.val_samples_limit

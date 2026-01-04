@@ -21,7 +21,11 @@ log = getLogger(__name__)
 
 
 def default_root_dir(config: BaseConfig, *, logs_dirname: str = "lightning_logs"):
-    base_path = (Path.cwd() / logs_dirname).resolve().absolute()
+    if config.args.logging_path:
+        base_path = (Path(config.args.logging_path) / logs_dirname).resolve().absolute()
+    else:
+        base_path = (Path.cwd() / logs_dirname).resolve().absolute()
+    # base_path = (Path.cwd() / logs_dirname).resolve().absolute()
     path = base_path / config.id
     path.mkdir(parents=True, exist_ok=True)
     return path

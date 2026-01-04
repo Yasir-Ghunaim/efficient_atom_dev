@@ -33,7 +33,8 @@ def parse_args():
                         default="random", help="Sampling strategy to use: 'random', only 'random' is supported for now.")
     parser.add_argument("--temperature_sampling", action="store_true", help="Use temperature sampling equal to 2")
     parser.add_argument("--ani1x_ood", action="store_true", help="Custom sampling for ani1x ood experiment")
-
+    parser.add_argument("--logging_path", type=str, help="Path to log experiments")
+    
     args = parser.parse_args()
     args.root_path = global_config.get("root_path", None)
 
