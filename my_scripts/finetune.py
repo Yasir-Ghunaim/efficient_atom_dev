@@ -27,6 +27,8 @@ parser.add_argument("--model_name", type=str, default="gemnet", help="Model name
 parser.add_argument("--epochs", type=int, default=500, help="Number of training epochs")
 parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
 parser.add_argument("--batch_size", type=int, help="Training batch size")
+parser.add_argument("--logging_path", type=str, help="Path to log experiments")
+
 
 args = parser.parse_args()
 args.root_path = global_config.get("root_path", None)

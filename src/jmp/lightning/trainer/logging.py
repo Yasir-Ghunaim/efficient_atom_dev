@@ -53,6 +53,7 @@ def _default_loggers(
             WandbLogger(
                 save_dir=base_path,
                 project=project or "lightning_logs",
+                entity="yasirghunaim",
                 name=name,
                 version=id,
                 log_model=log_model,
