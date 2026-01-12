@@ -171,7 +171,7 @@ def load_checkpoint(model, config, args):
                 for key, value in eqv2_state_dict.items()
             }
 
-            if args.checkpoint_tag == "MP":
+            if hasattr(args, "checkpoint_tag") and args.checkpoint_tag == "MP":
                 eqv2_state_dict = {
                     key.replace("module.", ""): value
                     for key, value in eqv2_state_dict.items()

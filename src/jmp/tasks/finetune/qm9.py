@@ -229,11 +229,19 @@ class QM9Model(FinetuneModelBase[QM9Config]):
     def data_transform(self, data: BaseData):
         data = super().data_transform(data)
 
-        data = self.generate_graphs(
-            data,
-            cutoffs=Cutoffs.from_constant(self.config.backbone.max_radius),
-            max_neighbors=MaxNeighbors.from_goc_base_proportions(self.config.backbone.max_neighbors),
-            pbc=False,
-        )
+        if self.config.args.model_name == "equiformer_v2":
+            data = self.generate_graphs(
+                data,
+                cutoffs=Cutoffs.from_constant(self.config.backbone.max_radius),
+                max_neighbors=MaxNeighbors.from_goc_base_proportions(self.config.backbone.max_neighbors),
+                pbc=False,
+            )
+        else:
+            data = self.generate_graphs(
+                data,
+                cutoffs=Cutoffs.from_constant(8.0),
+                max_neighbors=MaxNeighbors.from_goc_base_proportions(30),
+                pbc=False,
+            )
 
         return data

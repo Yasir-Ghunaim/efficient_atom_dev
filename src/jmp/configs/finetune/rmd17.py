@@ -76,8 +76,9 @@ def jmp_l_rmd17_config_(
 
     config.cutoff = 7.0
     config.max_neighbors = 100
-    config.backbone.max_radius = config.cutoff
-    config.backbone.max_neighbors = config.max_neighbors
+    if args.model_name == "equiformer_v2":
+        config.backbone.max_radius = config.cutoff
+        config.backbone.max_neighbors = config.max_neighbors
 
     # Set data config
     config.batch_size = 4
