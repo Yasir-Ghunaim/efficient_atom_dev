@@ -53,7 +53,7 @@ def jmp_l_ft_config_(
         config.embedding.embedding_size = config.backbone.emb_size_atom
         config.backbone.scale_basis = False
     elif config.model_name == "equiformer_v2":
-        if args.medium:
+        if hasattr(args, "medium") and args.medium:
             config.backbone = EquiformerV2Config.medium()
         elif args.large:
             config.backbone = EquiformerV2Config.large()
